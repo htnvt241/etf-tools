@@ -38,6 +38,11 @@ TICKERS = [
     ("USDTWD",  "TWD=X",     "美元兌台幣",          "fx",    "TWD"),
 ]
 
+# 台股 ETF 的早期還原股價，Yahoo 的資料有錯（缺 2009 年以前、分割日期錯置、
+# 00631L 早期價格異常），所以改用已校對過的歷史當底（data/seed/），
+# 底之後的新交易日，再接上 Yahoo 的每日漲跌幅。
+SEEDED = {"0050", "00631L"}
+
 UA = ("Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 "
       "(KHTML, like Gecko) Chrome/124.0 Safari/537.36")
 
@@ -69,6 +74,14 @@ def parse_chart_json(js):
     closes = q.get("close") or []
     adj_block = res["indicators"].get("adjclose")
     adjs = adj_block[0]["adjclose"] if adj_block else closes
+    # 盤中執行時，Yahoo 會給「今天到目前為止」的價格，不是收盤價 → 去掉
+    drop_date = None
+    try:
+        reg = res["meta"]["currentTradingPeriod"]["regular"]
+        if time.time() < reg["end"] + 20 * 60:
+            drop_date = (datetime.fromtimestamp(reg["end"], tz=timezone.utc) + timedelta(seconds=off)).date().isoformat()
+    except (KeyError, TypeError):
+        pass
     rows = []
     for t, c, a in zip(ts, closes, adjs):
         if c is None or a is None:
@@ -76,8 +89,39 @@ def parse_chart_json(js):
         if not (math.isfinite(c) and math.isfinite(a)) or c <= 0 or a <= 0:
             continue
         d = (datetime.fromtimestamp(t, tz=timezone.utc) + timedelta(seconds=off)).date().isoformat()
+        if d == drop_date:
+            continue
         rows.append((d, float(c), float(a)))
     return dedupe(rows)
+
+
+def merge_seed(name, rows):
+    """以 data/seed/<name>.csv 為底，之後的日子用 Yahoo 的每日漲跌幅接上去。"""
+    path = os.path.join(DATA, "seed", f"{name}.csv")
+    with open(path, newline="", encoding="utf-8") as f:
+        seed = [(d, float(a)) for d, a in list(csv.reader(f))[1:]]
+    last_d, last_v = seed[-1]
+    ymap = {d: (c, a) for d, c, a in rows}
+    out = [(d, a, a) for d, a in seed]
+    if last_d in ymap:  # 底的最後一天，收盤價用 Yahoo 的實際價格
+        out[-1] = (last_d, ymap[last_d][0], last_v)
+    prev = ymap.get(last_d)
+    if prev is None:
+        print(f"[{name}] Yahoo 找不到 {last_d} 的資料，無法接上新資料")
+        return out
+    v = last_v
+    lim = 0.45 if name == "00631L" else 0.25
+    for d, c, a in rows:
+        if d <= last_d:
+            continue
+        r = a / prev[1] - 1
+        if abs(r) > lim:
+            print(f"[{name}] {d} 單日變動 {r:+.1%} 不合理，停在前一天，請人工檢查")
+            break
+        v *= 1 + r
+        out.append((d, c, v))
+        prev = (c, a)
+    return out
 
 
 def fetch_yfinance(symbol):
@@ -174,6 +218,9 @@ def main():
                 print(f"[{name}] yfinance 也失敗：{e2}；保留舊資料")
         if rows and kind == "fx":
             rows = clean_fx(rows)
+        if rows and name in SEEDED:
+            rows = merge_seed(name, rows)
+            src += "+seed"
         if not rows:
             continue
         if old and len(rows) < len(old) * 0.97:
