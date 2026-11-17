@@ -5,10 +5,10 @@
    "label": "元大台灣50",
    "kind": "etf",
    "ccy": "TWD",
-   "first": "2009-01-02",
+   "first": "2003-06-30",
    "last": "2026-11-16",
-   "rows": 4373,
-   "source": "yahoo-chart"
+   "rows": 5751,
+   "source": "yahoo-chart+seed"
   },
   "006208": {
    "symbol": "006208.TW",
@@ -25,10 +25,10 @@
    "label": "元大台灣50正2",
    "kind": "etf",
    "ccy": "TWD",
-   "first": "2014-10-23",
+   "first": "2014-10-31",
    "last": "2026-11-16",
-   "rows": 2941,
-   "source": "yahoo-chart"
+   "rows": 2932,
+   "source": "yahoo-chart+seed"
   },
   "VT": {
    "symbol": "VT",
@@ -36,8 +36,8 @@
    "kind": "etf",
    "ccy": "USD",
    "first": "2008-06-26",
-   "last": "2026-11-17",
-   "rows": 4628,
+   "last": "2026-11-16",
+   "rows": 4627,
    "source": "yahoo-chart"
   },
   "VOO": {
@@ -46,8 +46,8 @@
    "kind": "etf",
    "ccy": "USD",
    "first": "2010-09-09",
-   "last": "2026-11-17",
-   "rows": 4073,
+   "last": "2026-11-16",
+   "rows": 4072,
    "source": "yahoo-chart"
   },
   "QQQ": {
@@ -56,8 +56,8 @@
    "kind": "etf",
    "ccy": "USD",
    "first": "1999-03-10",
-   "last": "2026-11-17",
-   "rows": 6967,
+   "last": "2026-11-16",
+   "rows": 6966,
    "source": "yahoo-chart"
   },
   "QLD": {
@@ -66,8 +66,8 @@
    "kind": "etf",
    "ccy": "USD",
    "first": "2006-06-21",
-   "last": "2026-11-17",
-   "rows": 5135,
+   "last": "2026-11-16",
+   "rows": 5134,
    "source": "yahoo-chart"
   },
   "BND": {
@@ -76,8 +76,8 @@
    "kind": "etf",
    "ccy": "USD",
    "first": "2007-04-10",
-   "last": "2026-11-17",
-   "rows": 4935,
+   "last": "2026-11-16",
+   "rows": 4934,
    "source": "yahoo-chart"
   },
   "TWII": {
@@ -96,8 +96,8 @@
    "kind": "index",
    "ccy": "USD",
    "first": "1927-12-30",
-   "last": "2026-11-17",
-   "rows": 24838,
+   "last": "2026-11-16",
+   "rows": 24837,
    "source": "yahoo-chart"
   },
   "SP500TR": {
@@ -106,8 +106,8 @@
    "kind": "index",
    "ccy": "USD",
    "first": "1988-01-04",
-   "last": "2026-11-17",
-   "rows": 9793,
+   "last": "2026-11-16",
+   "rows": 9792,
    "source": "yahoo-chart"
   },
   "USDTWD": {
@@ -116,10 +116,10 @@
    "kind": "fx",
    "ccy": "TWD",
    "first": "2004-03-24",
-   "last": "2026-11-17",
-   "rows": 5461,
+   "last": "2026-11-16",
+   "rows": 5460,
    "source": "yahoo-chart"
   }
  },
- "updated": "2026-11-18 01:37"
+ "updated": "2026-11-18 01:40"
 }
