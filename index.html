@@ -1,0 +1,100 @@
+<!DOCTYPE html>
+<html lang="zh-Hant"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>市場儀表板｜ETF 工具箱</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=Noto+Sans+TC:wght@400;500;700&display=swap">
+<link rel="stylesheet" href="assets/style.css">
+</head><body>
+<div class="wrap">
+<header id="top"></header>
+<h1>市場儀表板</h1>
+
+<div class="section-t">市場指數</div>
+<div class="two" id="idx">
+  <section class="card" id="c-TWII"><div class="loading">讀取中…</div></section>
+  <section class="card" id="c-GSPC"><div class="loading">讀取中…</div></section>
+</div>
+
+<div class="section-t">ETF<span class="sub">（報酬含息；點卡片可直接去回測）</span></div>
+<div class="tiles" id="tiles"></div>
+
+<footer>資料來源：Yahoo Finance，每個交易日收盤後自動更新。指數為價格指數（不含股息），ETF 報酬以還原股價（含息）計算。本站僅供學習研究，不構成投資建議。</footer>
+</div>
+<script src="assets/core.js"></script>
+<script src="assets/chart.js"></script>
+<script src="assets/common.js"></script>
+<script>
+(function(){
+  const {fmt, TICKERS, ETF_LIST} = ET;
+  const cls = ETUI.cls;
+
+  // ---- 指數卡片 ----
+  const RANGES = [["1年",1],["5年",5],["10年",10],["20年",20],["全部",0]];
+  function indexCard(name){
+    const box = document.getElementById("c-"+name), t = TICKERS[name];
+    ET.load(name).then(s=>{
+      const n = s.dates.length, last = s.close[n-1], prev = s.close[n-2];
+      let ath = 0, athD = ""; for (let i=0;i<n;i++) if (s.close[i] > ath){ath = s.close[i]; athD = s.dates[i];}
+      const dd = last/ath - 1;
+      let range = 5, log = false;
+      box.innerHTML = `<h3>${t.name}<span class="sub">${s.dates[n-1]} 收盤</span></h3>
+        <div class="kpis">
+          <div class="kpi"><small>收盤</small><b>${fmt.num(last,2)}</b></div>
+          <div class="kpi"><small>今日</small><b class="${cls(last-prev)}">${fmt.spct(last/prev-1,2)}</b></div>
+          <div class="kpi"><small>今年以來</small><b class="${cls(ET.periodChange({dates:s.dates,adj:s.close},0,"ytd"))}">${fmt.spct(ET.periodChange({dates:s.dates,adj:s.close},0,"ytd"))}</b></div>
+          <div class="kpi"><small>距歷史高點${ETUI.info("歷史最高收盤 "+fmt.num(ath,2)+"（"+athD+"）。0% 代表正在創新高。")}</small><b class="${dd<0?"neg":""}">${fmt.pct(dd)}</b></div>
+        </div>
+        <div class="tools" style="margin:12px 0 4px">
+          <div class="seg" data-r>${RANGES.map(([l,v])=>`<button type="button" data-v="${v}" class="${v===range?"on":""}">${l}</button>`).join("")}</div>
+          <label class="chk" style="font-size:12.5px"><input type="checkbox" data-log> 對數座標${ETUI.info("對數座標下，同樣的漲跌幅（例如 +10%）在圖上高度一樣，適合看很長的期間。")}</label>
+        </div>
+        <div data-chart></div>
+        <p class="note">${s.dates[0].slice(0,4)} 年起，共 ${fmt.num(n)} 個交易日。指數不含股息。</p>`;
+      const draw = ()=>{
+        const start = range ? ET.addYears(s.dates[n-1], -range) : s.dates[0];
+        const a = ET.lowerBound(s.dates, start);
+        ETChart.line(box.querySelector("[data-chart]"), {
+          series:[{name:t.label, color:"var(--accent)", dates:s.dates.slice(a), values:Array.from(s.close.slice(a))}],
+          log, height:260, yFmt:v=>fmt.num(v, v<100?1:0), aria:t.name+"走勢圖"
+        });
+      };
+      box.querySelector("[data-r]").addEventListener("click", e=>{
+        const b = e.target.closest("button"); if(!b) return;
+        range = +b.dataset.v; box.querySelectorAll("[data-r] button").forEach(x=>x.classList.toggle("on", x===b));
+        if (range === 0 || range === 20) { log = true; box.querySelector("[data-log]").checked = true; }
+        draw();
+      });
+      box.querySelector("[data-log]").addEventListener("change", e=>{ log = e.target.checked; draw(); });
+      draw();
+    }).catch(e=>{ box.classList.add("err"); box.innerHTML = "讀取資料失敗："+e.message; });
+  }
+  indexCard("TWII"); indexCard("GSPC");
+
+  // ---- ETF 卡片 ----
+  const tiles = document.getElementById("tiles");
+  const list = ETF_LIST.concat(["USDTWD"]);
+  tiles.innerHTML = list.map(k=>`<a class="tile" id="t-${k}" ${k!=="USDTWD"?`href="backtest.html?t=${k}"`:""}><div class="loading">${k}</div></a>`).join("");
+  list.forEach(k=>{
+    const t = TICKERS[k], box = document.getElementById("t-"+k);
+    ET.load(k).then(s=>{
+      const n = s.dates.length;
+      let ath = 0; for (let i=0;i<n;i++) if (s.adj[i] > ath) ath = s.adj[i];
+      const day = s.adj[n-1]/s.adj[n-2]-1, ytd = ET.periodChange(s,0,"ytd"), y1 = ET.periodChange(s,0,1), y5 = ET.periodChange(s,0,5);
+      const y5a = isFinite(y5) ? Math.pow(1+y5,1/5)-1 : NaN;
+      const fx = t.kind === "fx";
+      box.innerHTML = `<div class="hd"><span class="tk">${t.label}</span><span class="nm">${t.name}</span></div>
+        <div class="hd"><span class="px">${fx?"":(t.ccy==="USD"?"$":"")}${fmt.num(s.close[n-1], fx?3:2)}</span><span class="chg ${cls(day)}">${fmt.spct(day,2)}</span></div>
+        <div class="spark-h"></div>
+        <div class="mini">
+          <span>今年<b class="${cls(ytd)}">${fmt.spct(ytd)}</b></span>
+          <span>近1年<b class="${cls(y1)}">${fmt.spct(y1)}</b></span>
+          ${fx ? `<span>資料日<b>${s.dates[n-1].slice(5)}</b></span>`
+               : `<span>${isFinite(y5a)?"5年年化":"距高點"}<b class="${isFinite(y5a)?cls(y5a):"neg"}">${isFinite(y5a)?fmt.spct(y5a):fmt.pct(s.adj[n-1]/ath-1)}</b></span>`}
+        </div>`;
+      const a = ET.lowerBound(s.dates, ET.addYears(s.dates[n-1], -1));
+      ETChart.spark(box.querySelector(".spark-h"), s.dates.slice(a), Array.from(s.adj.slice(a)), t.color || "var(--accent)");
+      box.title = `${t.name}｜${s.dates[n-1]} 收盤｜距歷史高點 ${fmt.pct(s.adj[n-1]/ath-1)}`;
+    }).catch(()=>{ box.innerHTML = `<div class="hd"><span class="tk">${t.label}</span></div><span class="note">尚無資料</span>`; });
+  });
+})();
+</script>
+</body></html>
