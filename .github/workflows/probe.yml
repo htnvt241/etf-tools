@@ -1,0 +1,14 @@
+name: probe
+on: workflow_dispatch
+jobs:
+  p:
+    runs-on: ubuntu-latest
+    steps:
+      - run: |
+          for u in "https://fred.stlouisfed.org/graph/fredgraph.csv?id=DEXTAUS" \
+                   "https://fred.stlouisfed.org/data/DEXTAUS.txt" \
+                   "https://stooq.com/q/d/l/?s=usdtwd&i=d" \
+                   "https://www.federalreserve.gov/datadownload/Output.aspx?rel=H10&series=8eeb6d4b5d65d7b4a7fe1d1ba3e0f7f8&lastobs=&from=01/01/1988&to=12/31/2008&filetype=csv&label=include&layout=seriescolumn" \
+                   "https://query2.finance.yahoo.com/v8/finance/chart/USDTWD=X?period1=946684800&period2=1230768000&interval=1d" \
+                   "https://query2.finance.yahoo.com/v8/finance/chart/TWDUSD=X?period1=946684800&period2=1230768000&interval=1d"; do
+            echo "== $u"; curl -sS -m 40 -A "Mozilla/5.0" -o out.txt -w "%{http_code} %{size_download}\n" "$u"; head -c 300 out.txt; echo; done
