@@ -58,7 +58,8 @@ button.primary{background:var(--accent);border-color:var(--accent);color:var(--b
 .pick:hover{background:var(--soft)}
 .pick input{width:auto;margin:0}
 .pick i{width:10px;height:10px;border-radius:2px;display:inline-block;flex:none}
-.pick small{color:var(--mute);font-size:11px}
+.pick small{color:var(--mute);font-size:11px;white-space:nowrap}
+.pick small .est{text-decoration:underline dotted}
 label.chk{display:flex;gap:8px;align-items:flex-start;font-size:13px;color:var(--ink);cursor:pointer}
 label.chk input{width:auto;margin-top:3px}
 .quick{display:flex;flex-wrap:wrap;gap:6px}
