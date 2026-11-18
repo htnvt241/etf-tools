@@ -2,7 +2,7 @@
 <html lang="zh-Hant"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
 <title>ETF 組合最佳化｜ETF 工具箱</title>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=Noto+Sans+TC:wght@400;500;700&display=swap">
-<link rel="stylesheet" href="assets/style.css?v=1119b">
+<link rel="stylesheet" href="assets/style.css?v=1119c">
 </head><body>
 <div class="wrap">
 <header id="top"></header>
@@ -37,9 +37,9 @@
 </div>
 <footer>報酬以還原股價（含息再投入）計算，未計手續費與稅。最佳化以每週資料快速比較所有組合，三組結果再用每日資料精算。用歷史資料找出的配置，不代表未來也會最好。本站僅供學習研究，不構成投資建議。</footer>
 </div>
-<script src="assets/core.js?v=1119b"></script>
-<script src="assets/chart.js?v=1119b"></script>
-<script src="assets/common.js?v=1119b"></script>
+<script src="assets/core.js?v=1119c"></script>
+<script src="assets/chart.js?v=1119c"></script>
+<script src="assets/common.js?v=1119c"></script>
 <script>
 (function(){
   const {fmt, TICKERS, ETF_LIST} = ET;
@@ -144,7 +144,7 @@
     $("out").innerHTML = `<div class="card"><h3>計算中…</h3><p class="note" id="prog">準備中</p><div class="bar"><i id="progBar"></i></div></div>`;
     $("go").disabled = true;
     if (worker) worker.terminate();
-    worker = new Worker("assets/optimize-worker.js?v=1119b");
+    worker = new Worker("assets/optimize-worker.js?v=1119c");
     worker.onmessage = ev => {
       const m = ev.data;
       if (m.type === "progress") {

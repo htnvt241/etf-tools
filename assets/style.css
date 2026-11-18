@@ -176,3 +176,4 @@ button.addrow:hover,button.addbtn:hover{color:var(--accent);border-color:var(--a
 .bar{height:6px;background:var(--soft);border-radius:3px;overflow:hidden;margin-top:8px}
 .bar i{display:block;height:100%;width:0;background:var(--accent);transition:width .2s}
 button.primary:disabled{opacity:.5;cursor:not-allowed}
+.kpi .sub{display:block;margin-top:2px}
