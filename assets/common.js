@@ -5,7 +5,7 @@
     ["index.html", "市場儀表板"],
     ["backtest.html", "ETF 回測比較"],
     ["retire.html", "退休提領"],
-    ["#", "ETF 組合最佳化", true],
+    ["optimize.html", "ETF 組合最佳化"],
   ];
   const here = location.pathname.split("/").pop() || "index.html";
   const top = document.getElementById("top");

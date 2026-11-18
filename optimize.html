@@ -1,0 +1,240 @@
+<!DOCTYPE html>
+<html lang="zh-Hant"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>ETF 組合最佳化｜ETF 工具箱</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=Noto+Sans+TC:wght@400;500;700&display=swap">
+<link rel="stylesheet" href="assets/style.css?v=1119b">
+</head><body>
+<div class="wrap">
+<header id="top"></header>
+<h1>ETF 組合最佳化</h1>
+<p class="sub" style="margin:-8px 0 0">勾選 2～5 檔 ETF，系統試遍各種比例，找出三組配置：在你能承受的最大回撤內報酬最高的「自定義」、報酬與回撤最划算的「平衡」、報酬最高的「進取」。</p>
+<div class="grid">
+<form class="rail" id="f" onsubmit="return false">
+  <h4>參與最佳化的 ETF（2～5 檔）</h4>
+  <div class="picks" id="picks"></div>
+  <h4>自定義最大回撤</h4>
+  <label><span>最多能承受跌幾 %<span id="mddI"></span></span><input id="mddLim" type="number" min="5" max="95" step="1" value="50"></label>
+  <h4>再平衡</h4>
+  <div class="seg" id="reb"><button type="button" data-v="none">不調整</button><button type="button" data-v="year" class="on">每年</button><button type="button" data-v="quarter">每季</button></div>
+  <h4>投入方式</h4>
+  <div class="seg" id="mode"><button type="button" data-v="lump" class="on">單筆投入</button><button type="button" data-v="dca">定期定額</button></div>
+  <label><span id="amtL">投入金額</span><input id="amt" type="number" min="1" step="10000" value="100000"></label>
+  <h4>期間</h4>
+  <div class="row2"><label>起<input id="start" type="date"></label><label>迄<input id="end" type="date"></label></div>
+  <div class="quick"><button type="button" data-q="max">最長共同期間</button><button type="button" data-q="10">近 10 年</button><button type="button" data-q="5">近 5 年</button></div>
+  <p class="hint" id="rangeH"></p>
+  <div id="ccyBox">
+    <h4>美股計價幣別</h4>
+    <div class="seg" id="ccy"><button type="button" data-v="USD" class="on">美金</button><button type="button" data-v="TWD">台幣</button></div>
+    <p class="hint">只影響「全部是美股」的情況。勾選中有台股時一律用台幣計算。</p>
+  </div>
+  <label class="chk"><input type="checkbox" id="ext"><span>用相關指數推估上市前的歷史<span id="extI"></span></span></label>
+  <p class="hint">推估準確度：VOO、006208 很高，QQQ 高；<b>00631L、QLD 中等</b>，正2 的成本會隨當時利率變動，個別年份可能差好幾 %，適合看大方向，精確數字僅供參考。</p>
+  <button type="button" class="primary" id="go">開始最佳化</button>
+  <p class="hint" id="spaceH"></p>
+</form>
+<main id="out"><div class="card">勾選 2～5 檔 ETF 後，按「開始最佳化」。</div></main>
+</div>
+<footer>報酬以還原股價（含息再投入）計算，未計手續費與稅。最佳化以每週資料快速比較所有組合，三組結果再用每日資料精算。用歷史資料找出的配置，不代表未來也會最好。本站僅供學習研究，不構成投資建議。</footer>
+</div>
+<script src="assets/core.js?v=1119b"></script>
+<script src="assets/chart.js?v=1119b"></script>
+<script src="assets/common.js?v=1119b"></script>
+<script>
+(function(){
+  const {fmt, TICKERS, ETF_LIST} = ET;
+  const info = ETUI.info, cls = ETUI.cls, $ = id => document.getElementById(id);
+  const STEP = 2;
+  const st = { picks: ["0050","00631L","QQQ"], reb: "year", mode: "lump", ccy: "USD", ext: false, start: null, end: null, log: true };
+
+  $("mddI").innerHTML = info("「自定義」那一組，會在最大回撤不超過這個數字的配置裡，挑報酬最高的。例如填 30，代表最慘的時候帳面最多跌 30%。");
+  $("extI").innerHTML = info("勾選後，上市較晚的 ETF 用追蹤相同指數的標的把歷史往前延伸（006208、00631L 用 0050，QLD 用 QQQ，VOO 用 S&P 500 含息指數，QQQ 用那斯達克 100 指數），可以涵蓋更長的期間，例如 2008 年金融海嘯。");
+
+  // ---------- 資料 ----------
+  const raw = {};
+  Promise.all(ETF_LIST.concat(["SP500TR","NDX","USDTWD"]).map(k=>ET.load(k).then(s=>raw[k]=s).catch(()=>null))).then(()=>{ drawPicks(); refresh(); });
+  function startYear(k){
+    const s = raw[k]; if (!s) return "";
+    const y = s.dates[0].slice(0,4), spec = TICKERS[k].ext, base = spec && raw[spec.base];
+    const ey = st.ext && base ? base.dates[0].slice(0,4) : null;
+    return (TICKERS[k].ccy==="USD"?"美":"台") + " " + (ey && ey < y ? `<span class="est">${ey}</span>·` : "") + y;
+  }
+  function drawPicks(){
+    $("picks").innerHTML = ETF_LIST.map(k=>`<label class="pick"><input type="checkbox" value="${k}" ${st.picks.includes(k)?"checked":""}><i style="background:var(--s${TICKERS[k].color})"></i>${k}<small>${startYear(k)}</small></label>`).join("");
+  }
+  const calib = {};
+  function series(k, twd){
+    let s = { dates: raw[k].dates, adj: raw[k].adj, estN: 0 };
+    const spec = TICKERS[k].ext;
+    if (st.ext && spec && raw[spec.base]) {
+      if (!calib[k]) calib[k] = ET.calibrate(raw[k], raw[spec.base], spec.lev);
+      s = ET.extend(raw[k], raw[spec.base], spec.lev, calib[k].drag);
+    }
+    if (TICKERS[k].ccy === "USD" && twd && raw.USDTWD) s = ET.toTWD(s, raw.USDTWD);
+    return s;
+  }
+  const ccyNow = () => st.picks.every(k=>TICKERS[k].ccy==="USD") && st.ccy === "USD" ? "USD" : "TWD";
+  function combos(n){ let c = 1; for (let i=1;i<n;i++) c = c * (100/STEP + i) / i; return Math.round(c); }
+
+  // 期間與搜尋範圍說明（不重新計算）
+  let lastEnd = "";
+  function refresh(){
+    if (!Object.keys(raw).length) return;
+    $("ccyBox").hidden = !st.picks.length || !st.picks.every(k=>TICKERS[k].ccy==="USD");
+    const n = st.picks.length;
+    $("go").disabled = n < 2 || n > 5;
+    if (n < 2 || n > 5) { $("rangeH").textContent = ""; $("spaceH").innerHTML = n > 5 ? "最多 5 檔" : "請勾選至少 2 檔"; return; }
+    const S = st.picks.map(k=>series(k, ccyNow()==="TWD"));
+    const c0 = S.map(s=>s.dates[0]).sort().pop(), c1 = S.map(s=>s.dates[s.dates.length-1]).sort()[0];
+    lastEnd = c1;
+    const start = st.start && st.start > c0 ? st.start : c0, end = st.end && st.end < c1 ? st.end : c1;
+    $("start").value = start; $("end").value = end; $("start").min = c0; $("end").max = c1;
+    $("rangeH").textContent = `可用期間 ${c0} ～ ${c1}（從最晚上市的那檔算起）`;
+    $("spaceH").innerHTML = `搜尋範圍：${st.picks.join("、")} 各 0%～100%，每 ${STEP}% 一格，比例加總 100%，共 <b>${fmt.num(combos(n))}</b> 種組合。`;
+  }
+
+  // ---------- 控制項 ----------
+  $("picks").addEventListener("change", e=>{
+    const on = [...$("picks").querySelectorAll("input")].filter(b=>b.checked).map(b=>b.value);
+    if (on.length > 5) { e.target.checked = false; return; }
+    st.picks = on; refresh();
+  });
+  function segBind(id, key){
+    $(id).addEventListener("click", e=>{ const b = e.target.closest("button"); if(!b) return;
+      st[key] = b.dataset.v; $(id).querySelectorAll("button").forEach(x=>x.classList.toggle("on", x===b));
+      if (key === "mode") { $("amt").value = st.mode === "lump" ? 100000 : 10000; $("amtL").textContent = st.mode === "lump" ? "投入金額" : "每月投入金額"; }
+      refresh(); });
+  }
+  segBind("reb","reb"); segBind("mode","mode"); segBind("ccy","ccy");
+  $("ext").addEventListener("change", e=>{ st.ext = e.target.checked; st.start = null; drawPicks(); refresh(); });
+  $("start").addEventListener("change", e=>{ st.start = e.target.value || null; refresh(); });
+  $("end").addEventListener("change", e=>{ st.end = e.target.value || null; refresh(); });
+  document.querySelector(".quick").addEventListener("click", e=>{ const b = e.target.closest("button"); if(!b) return;
+    st.start = b.dataset.q === "max" ? null : ET.addYears(st.end || lastEnd, -+b.dataset.q); refresh(); });
+  $("go").addEventListener("click", go);
+
+  // ---------- 最佳化 ----------
+  let worker = null;
+  function go(){
+    const keys = st.picks.slice(), n = keys.length; if (n < 2 || n > 5) return;
+    const ccy = ccyNow(), twd = ccy === "TWD";
+    const start = $("start").value, end = $("end").value;
+    const lim = Math.max(1, Math.min(99, +$("mddLim").value || 50)) / 100;
+    const comp = keys.map(k=>ET.slice(series(k, twd), start, end));
+    // 用 portfolio() 的方式對齊日期：各檔等權的「價格矩陣」
+    const navs = keys.map((k,i)=>ET.portfolio([{ s: comp[i], w: 1 }], "none"));
+    // 聯集日期（每檔都已對齊到共同期間）
+    const set = new Set(); navs.forEach(p=>p.dates.forEach(d=>set.add(d)));
+    const c0 = navs.map(p=>p.dates[0]).sort().pop(), c1 = navs.map(p=>p.dates[p.dates.length-1]).sort()[0];
+    const dates = [...set].filter(d=>d>=c0 && d<=c1).sort();
+    const px = navs.map(p=>{ const a = new Float64Array(dates.length); let j = 0;
+      for (let i=0;i<dates.length;i++){ while (j+1<p.dates.length && p.dates[j+1] <= dates[i]) j++; a[i] = p.adj[j]; } return a; });
+    // 每週最後一個交易日
+    const wk = []; for (let i=0;i<dates.length;i++){ const d = new Date(ET.dnum(dates[i])); const nx = i+1<dates.length ? new Date(ET.dnum(dates[i+1])) : null;
+      if (!nx || nx.getUTCDay() <= d.getUTCDay() || (nx - d) > 6*864e5) wk.push(i); }
+    const T = wk.length - 1;
+    const R = new Float64Array(T * n), reb = new Uint8Array(T);
+    const per = d => st.reb === "year" ? d.slice(0,4) : st.reb === "quarter" ? d.slice(0,4)+Math.floor((+d.slice(5,7)-1)/3) : "";
+    for (let t=0;t<T;t++){
+      for (let k=0;k<n;k++) R[t*n+k] = px[k][wk[t+1]] / px[k][wk[t]] - 1;
+      reb[t] = st.reb !== "none" && t > 0 && per(dates[wk[t]]) !== per(dates[wk[t-1]]) ? 1 : 0;
+    }
+    const years = ET.years(dates[wk[0]], dates[wk[T]]);
+    const M = combos(n);
+    $("out").innerHTML = `<div class="card"><h3>計算中…</h3><p class="note" id="prog">準備中</p><div class="bar"><i id="progBar"></i></div></div>`;
+    $("go").disabled = true;
+    if (worker) worker.terminate();
+    worker = new Worker("assets/optimize-worker.js?v=1119b");
+    worker.onmessage = ev => {
+      const m = ev.data;
+      if (m.type === "progress") {
+        const pct = (m.phase === 1 ? 0.8 : 0.8 + 0.2) * 0 + (m.phase === 1 ? m.done / m.total * 80 : 80 + m.done / m.total * 20);
+        $("prog").textContent = m.phase === 1 ? `比較各種比例：${fmt.num(m.done)} / ${fmt.num(m.total)}` : "評估高原型（周圍比例是否也表現好）";
+        $("progBar").style.width = pct.toFixed(0) + "%";
+        return;
+      }
+      $("go").disabled = false;
+      finish(m, { keys, n, comp, ccy, start: dates[0], end: dates[dates.length-1], lim, years });
+    };
+    worker.postMessage({ R, reb, T, n, years, step: STEP });
+  }
+
+  // 每日資料精算一組配置
+  function daily(ctx, wts){
+    const parts = ctx.keys.map((k,i)=>({ s: ctx.comp[i], w: wts[i] })).filter(p=>p.w > 0);
+    const nav = ET.slice(ET.portfolio(parts, st.reb), ctx.start, ctx.end);
+    const amt = Math.max(1, +$("amt").value || 0);
+    const res = st.mode === "lump" ? ET.lumpSum(nav, amt) : ET.dca(nav, amt);
+    const lump = st.mode === "lump" ? res : ET.lumpSum(nav, amt);
+    return { nav, res, ret: st.mode === "lump" ? res.cagr : res.irr, mdd: lump.mdd.mdd, vol: lump.vol };
+  }
+
+  function finish(m, ctx){
+    const { M, S, flat, cagr, mdd, sCagr, sMdd } = m, n = ctx.n;
+    const W = i => Array.from(flat.subarray(i*n, i*n+n), x=>x/S);
+    const argmax = (score, ok) => { let b = -1, bv = -Infinity; for (let i=0;i<M;i++) if ((!ok || ok(i)) && score(i) > bv) { bv = score(i); b = i; } return b; };
+    // 高原型：分數用鄰居平均報酬、鄰居最差回撤
+    const picks = {};
+    // 自定義：鄰居最差回撤也不超過上限；再用每日資料確認，超過就往下一名找
+    const okIdx = []; for (let i=0;i<M;i++) if (-sMdd[i] <= ctx.lim) okIdx.push(i);
+    okIdx.sort((a,b)=>sCagr[b]-sCagr[a]);
+    let custom = null;
+    for (let r=0; r<Math.min(okIdx.length, 400); r++) { const d = daily(ctx, W(okIdx[r])); if (-d.mdd <= ctx.lim) { custom = okIdx[r]; break; } }
+    picks.custom = custom;
+    picks.balance = argmax(i => sCagr[i] / Math.max(0.01, -sMdd[i]));
+    picks.aggr = argmax(i => sCagr[i]);
+    // 尖峰型（只看單一點）供對照
+    const peak = {
+      custom: argmax(i => cagr[i], i => -mdd[i] <= ctx.lim),
+      balance: argmax(i => cagr[i] / Math.max(0.01, -mdd[i])),
+      aggr: argmax(i => cagr[i]),
+    };
+    render(ctx, picks, peak, W, m);
+  }
+
+  const wDesc = (keys, w) => keys.map((k,i)=>[k, w[i]]).filter(x=>x[1]>0).map(([k,v])=>`${k} ${Math.round(v*100)}%`).join("＋");
+  function render(ctx, picks, peak, W, m){
+    const L = { custom: `自定義（回撤 ≤ ${Math.round(ctx.lim*100)}%）`, balance: "平衡", aggr: "進取" };
+    const D = { custom: `最大回撤不超過 ${Math.round(ctx.lim*100)}% 的配置中，報酬最高`, balance: "「年化報酬 ÷ 最大回撤」最高：每承受 1% 回撤換到最多報酬", aggr: "報酬最高，回撤也最大" };
+    const COL = { custom: 1, balance: 3, aggr: 2 };
+    const ret = st.mode === "lump" ? "年化報酬" : "年化報酬（IRR）";
+    const res = {};
+    let h = `<section class="card callout-card"><div class="callout"><b>這是「高原型」最佳化</b>，不是只挑歷史上單一最高點的「尖峰型」。
+      高原型挑的是：比例稍微改變（例如各檔增減 2%～6%），結果也一樣好的配置，比較不會只是剛好適合過去。
+      所以這裡的報酬數字，通常會<b>比尖峰型略低</b>，這是刻意的保守選擇，不是算錯。每組下方灰字列出尖峰型的結果供對照。</div>
+      <p class="note" style="margin:0">${ctx.start} ～ ${ctx.end}，約 ${ctx.years.toFixed(1)} 年｜${ctx.keys.join("、")}，每 ${STEP}% 一格，共 ${fmt.num(m.M)} 種組合｜再平衡：${({none:"不調整",year:"每年",quarter:"每季"})[st.reb]}｜${ctx.ccy==="USD"?"美金":"台幣"}計價｜計算 ${Math.max(0.1, m.ms/1000).toFixed(1)} 秒</p></section>
+      <div class="tiers">`;
+    for (const key of ["custom","balance","aggr"]) {
+      const i = picks[key];
+      if (i === null || i < 0) { h += `<div class="tier"><h4>${L[key]}</h4><p class="note">沒有任何配置的最大回撤能控制在 ${Math.round(ctx.lim*100)}% 以內（含周圍比例）。可以把上限調高，或加入波動較低的標的（例如 BND）。</p></div>`; continue; }
+      const w = W(i), d = daily(ctx, w); res[key] = { w, d };
+      const pk = peak[key] >= 0 ? peak[key] : null, pw = pk !== null ? W(pk) : null, pd = pk !== null ? daily(ctx, pw) : null;
+      h += `<div class="tier"><h4><i class="sw" style="background:var(--s${COL[key]})"></i>${L[key]}<small>${D[key]}</small></h4>
+        <div class="wbars">${ctx.keys.map((k,j)=>`<div class="wb"><span>${k}</span><div><i style="width:${(w[j]*100).toFixed(0)}%;background:var(--s${TICKERS[k].color})"></i></div><b>${Math.round(w[j]*100)}%</b></div>`).join("")}</div>
+        <div class="tp"><div><small>${ret}</small><b class="${cls(d.ret)}">${fmt.spct(d.ret,2)}</b></div><div><small>最大回撤</small><b class="neg">${fmt.pct(d.mdd)}</b></div>
+          <div><small>年化波動</small><b>${fmt.pct(d.vol)}</b></div><div><small>報酬 ÷ 回撤</small><b>${(d.ret/Math.max(0.0001,-d.mdd)).toFixed(2)}</b></div></div>
+        ${pd ? `<p class="peak">尖峰型：${wDesc(ctx.keys, pw)}，${ret} ${fmt.spct(pd.ret,2)}、回撤 ${fmt.pct(pd.mdd)}</p>` : ""}
+      </div>`;
+    }
+    h += `</div>
+      <section class="card"><h3>三組配置的資產走勢<span class="sub">${ctx.ccy==="USD"?"美金":"台幣"}，每日資料</span></h3>
+        <div class="tools" style="margin-bottom:6px"><label class="chk" style="font-size:12.5px"><input type="checkbox" id="logc" ${st.log?"checked":""}> 對數座標</label>
+        <a id="toBt" href="#">把這三組帶到「ETF 回測比較」看更多細節 →</a></div>
+        <div id="ch"></div></section>
+      <section class="card"><h3>回撤</h3><div id="chdd"></div></section>`;
+    $("out").innerHTML = h;
+    const keysOk = ["custom","balance","aggr"].filter(k=>res[k]);
+    const lineS = keysOk.map(k=>({ name: L[k].replace(/（.*/,""), color: COL[k], dates: res[k].d.nav.dates, values: Array.from(res[k].d.res.value), estN: res[k].d.nav.estN }));
+    const short = v => ctx.ccy === "USD" ? (v>=1e6 ? "$"+(v/1e6).toFixed(v>=1e7?0:1)+"M" : "$"+(v/1e3).toFixed(0)+"K") : (v>=1e8 ? (v/1e8).toFixed(1)+"億" : (v/1e4).toFixed(0)+"萬");
+    const draw = () => ETChart.line($("ch"), { series: lineS, log: st.log, height: 300, yFmt: short, tipFmt: v=>fmt.money(v, ctx.ccy) });
+    draw();
+    $("logc").addEventListener("change", e=>{ st.log = e.target.checked; draw(); });
+    ETChart.line($("chdd"), { series: keysOk.map(k=>({ name: L[k].replace(/（.*/,""), color: COL[k], dates: res[k].d.nav.dates, values: Array.from(ET.drawdownSeries(res[k].d.nav.adj)), estN: res[k].d.nav.estN })),
+      zero: true, height: 200, yFmt: v=>fmt.pct(v,0), tipFmt: v=>fmt.pct(v,1), noLabels: true });
+    // 帶到回測比較
+    const pf = keysOk.map(k=>ctx.keys.map((t,j)=>[t, Math.round(res[k].w[j]*100)]).filter(x=>x[1]>0).map(x=>x.join(":")).join(",")).join("|");
+    $("toBt").href = `backtest.html?pf=${encodeURIComponent(pf)}&reb=${st.reb}&s=${ctx.start}&e=${ctx.end}${st.ext?"&ext=1":""}&mode=${st.mode}`;
+  }
+})();
+</script>
+</body></html>
