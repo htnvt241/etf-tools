@@ -268,7 +268,6 @@ def main():
     fix_version = hashlib.md5((LOGIC_VERSION + json.dumps(sorted(fix_keys)) + "".join(
         str(os.path.getsize(os.path.join(DATA, "seed", f))) for f in sorted(os.listdir(os.path.join(DATA, "seed")))
     )).encode()).hexdigest()[:10]
-    same_fix = meta.get("fix_version") == fix_version
 
     # 1) 抓資料
     raw, src, old = {}, {}, {}
@@ -335,7 +334,8 @@ def main():
             continue
         seed_last = seed_last_date(name) if name in SEEDED else None
         fixed_dates = {f["date"] for f in fixed_log if f["ticker"] == name}
-        issues = checks.run_all(name, raw[name], raw, old[name] if same_fix else None, seed_last, fixed_dates)
+        same = meta["tickers"].get(name, {}).get("fix_version") == fix_version  # 每檔記自己的版本（被擋下的那檔仍是舊版）
+        issues = checks.run_all(name, raw[name], raw, old[name] if same else None, seed_last, fixed_dates)
         for i in issues:
             k = checks.key(i)
             if k in known_note:
@@ -368,6 +368,7 @@ def main():
         meta["tickers"][name] = {
             "symbol": sym, "label": label, "kind": kind, "ccy": ccy,
             "first": rows[0][0], "last": rows[-1][0], "rows": len(rows), "source": src.get(name, ""),
+            "fix_version": fix_version,
         }
         ok_count += 1
         print(f"[{name}] OK {rows[0][0]} ~ {rows[-1][0]}，{len(rows)} 筆（{src.get(name, '')}）")
