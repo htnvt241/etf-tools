@@ -90,7 +90,7 @@
       if (!ser.length) { host.innerHTML = '<p class="note">這段期間沒有資料</p>'; return; }
       const W = Math.max(280, host.clientWidth), H = opt.height || 300;
       const labels = ser.length >= 2 && ser.length <= 4 && W > 520 && !opt.noLabels;
-      const m = { l: 58, r: labels ? 74 : 14, t: 10, b: 26 };
+      const m = { l: opt.ml || 58, r: labels ? 74 : 14, t: 10, b: 26 };
       const xs = ser.map(s => s.dates.map(dnum));
       let t0 = Infinity, t1 = -Infinity, lo = Infinity, hi = -Infinity;
       ser.forEach((s, k) => {
@@ -186,8 +186,9 @@
     const draw = () => {
       host.innerHTML = ""; host.classList.add("cw");
       const W = Math.max(280, host.clientWidth), H = opt.height || 260;
-      const m = { l: 52, r: 10, t: 10, b: 26 };
+      const m = { l: opt.ml || 52, r: 10, t: 10, b: 26 };
       const ser = opt.series, cats = opt.cats;
+      const nSlot = opt.single ? 1 : ser.length;  // single：每個類別只有一根（各系列互補，只有一個有值）
       let lo = 0, hi = 0;
       for (const s of ser) for (const v of s.values) if (v != null) { lo = Math.min(lo, v); hi = Math.max(hi, v); }
       const yt = niceTicks(lo, hi, 5); lo = Math.min(lo, yt[0]); hi = Math.max(hi, yt[yt.length - 1]);
@@ -201,14 +202,14 @@
         el("text", { x: m.l - 6, y: Y(v) + 4, "text-anchor": "end" }, svg).textContent = opt.yFmt ? opt.yFmt(v) : v;
       }
       const gw = iw / cats.length, gap = Math.min(6, gw * 0.2);
-      const bw = Math.max(1, (gw - gap) / ser.length - (ser.length > 1 ? 1 : 0));
+      const bw = Math.max(1, (gw - gap) / nSlot - (nSlot > 1 ? 1 : 0));
       const every = Math.ceil(cats.length / Math.max(2, Math.floor(iw / 44)));
       const tip = document.createElement("div"); tip.className = "ct"; tip.hidden = true; host.appendChild(tip);
       cats.forEach((c, ci) => {
         const gx = m.l + ci * gw + gap / 2;
         ser.forEach((s, k) => {
           const v = s.values[ci]; if (v == null) return;
-          const x = gx + k * (bw + (ser.length > 1 ? 1 : 0)), y0 = Y(0), y = Y(v);
+          const x = gx + (opt.single ? 0 : k) * (bw + (nSlot > 1 ? 1 : 0)), y0 = Y(0), y = Y(v);
           const h = Math.max(1, Math.abs(y - y0)), top = Math.min(y, y0), r = Math.min(3, bw / 2, h / 2);
           // 遠離基準線的那一端圓角
           const d = v >= 0

@@ -4,7 +4,7 @@
   const PAGES = [
     ["index.html", "市場儀表板"],
     ["backtest.html", "ETF 回測比較"],
-    ["#", "退休提領", true],
+    ["retire.html", "退休提領"],
     ["#", "資產配置", true],
   ];
   const here = location.pathname.split("/").pop() || "index.html";

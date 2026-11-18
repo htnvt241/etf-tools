@@ -6,6 +6,16 @@
 
 - **市場儀表板**（`index.html`）：台灣加權指數、S&P 500，以及各 ETF 的最新報酬
 - **ETF 回測比較**（`backtest.html`）：單筆投入／定期定額、美股可切換美金或台幣、每年報酬、回撤、滾動報酬
+- **退休提領模擬**（`retire.html`）：以歷史上每一年當退休起點，模擬每年提領生活費後錢會不會用完。4 種提領方式（4% 法則、固定比例、護欄法、固定金額）、股債配置、美國 CPI 或固定通膨。
+
+### 退休提領用的年度資料（`data/annual/`）
+
+| 檔案 | 內容 | 來源 | 更新方式 |
+|---|---|---|---|
+| `us_returns.csv` | 1928 年起每年的 S&P 500（含息）、美國 3 個月國庫券、美國 10 年公債報酬 | 紐約大學 Damodaran 教授 [histretSP](https://pages.stern.nyu.edu/~adamodar/New_Home_Page/datafile/histretSP.html) | 每年初手動補上前一年（與本站每日資料計算的 S&P 500 含息報酬比對，每年差距約 0.1–0.3%） |
+| `us_cpi.csv` | 1927 年起美國 CPI 年平均 | 明尼亞波利斯聯準銀行 [CPI 1913-](https://www.minneapolisfed.org/about-us/monetary-policy/inflation-calculator/consumer-price-index-1913-) | 每年初手動補上前一年 |
+
+台灣 CPI 尚未加入。
 
 ## 推估資料
 
