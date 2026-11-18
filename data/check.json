@@ -1,8 +1,47 @@
 {
- "checked": "2026-11-18 13:02",
- "status": "ok",
- "new": [],
- "blocked": [],
+ "checked": "2026-11-18 13:13",
+ "status": "problem",
+ "new": [
+  {
+   "ticker": "QQQ",
+   "type": "jump",
+   "date": "2000-09-21",
+   "detail": "單日 -7.3%，但 NDX 是 -1.9%"
+  },
+  {
+   "ticker": "QQQ",
+   "type": "jump",
+   "date": "2000-09-22",
+   "detail": "單日 +5.9%，但 NDX 是 -0.5%"
+  },
+  {
+   "ticker": "QQQ",
+   "type": "jump",
+   "date": "2000-11-29",
+   "detail": "單日 -3.8%，但 NDX 是 -0.7%"
+  },
+  {
+   "ticker": "QQQ",
+   "type": "jump",
+   "date": "2000-11-30",
+   "detail": "單日 +0.1%，但 NDX 是 -3.7%"
+  },
+  {
+   "ticker": "QQQ",
+   "type": "jump",
+   "date": "2000-12-08",
+   "detail": "單日 +2.3%，但 NDX 是 +6.5%"
+  },
+  {
+   "ticker": "QQQ",
+   "type": "jump",
+   "date": "2008-09-30",
+   "detail": "單日 +2.9%，但 NDX 是 +6.6%"
+  }
+ ],
+ "blocked": [
+  "QQQ"
+ ],
  "stale": [],
  "fixed": [
   {
@@ -162,28 +201,14 @@
    "ticker": "QQQ",
    "type": "jump",
    "date": "2000-01-07",
-   "detail": "單日 +12.4%，但 GSPC 是 +2.7%",
-   "note": "真實：網路泡沫期間那斯達克和 S&P 500 走勢差異極大"
-  },
-  {
-   "ticker": "QQQ",
-   "type": "jump",
-   "date": "2000-04-17",
-   "detail": "單日 +11.5%，但 GSPC 是 +3.3%",
+   "detail": "單日 +12.4%，但 NDX 是 +5.7%",
    "note": "真實：網路泡沫期間那斯達克和 S&P 500 走勢差異極大"
   },
   {
    "ticker": "QQQ",
    "type": "jump",
    "date": "2000-12-11",
-   "detail": "單日 +9.4%，但 GSPC 是 +0.8%",
-   "note": "真實：網路泡沫期間那斯達克和 S&P 500 走勢差異極大"
-  },
-  {
-   "ticker": "QQQ",
-   "type": "jump",
-   "date": "2001-01-03",
-   "detail": "單日 +16.8%，但 GSPC 是 +5.0%",
+   "detail": "單日 +9.4%，但 NDX 是 +2.7%",
    "note": "真實：網路泡沫期間那斯達克和 S&P 500 走勢差異極大"
   },
   {

@@ -119,8 +119,18 @@
    "last": "2026-11-17",
    "rows": 10524,
    "source": "yahoo+fred-seed"
+  },
+  "NDX": {
+   "symbol": "^NDX",
+   "label": "那斯達克 100 指數",
+   "kind": "index",
+   "ccy": "USD",
+   "first": "1985-10-01",
+   "last": "2026-11-17",
+   "rows": 10363,
+   "source": "yahoo-chart"
   }
  },
- "updated": "2026-11-18 13:02",
+ "updated": "2026-11-18 13:13",
  "fix_version": "2b0ac8fa8b"
 }
