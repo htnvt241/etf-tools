@@ -8,7 +8,8 @@
    "first": "2003-06-30",
    "last": "2026-11-16",
    "rows": 5751,
-   "source": "yahoo-chart+seed"
+   "source": "yahoo-chart+seed",
+   "fix_version": "7c5ad25f5b"
   },
   "006208": {
    "symbol": "006208.TW",
@@ -18,7 +19,8 @@
    "first": "2012-06-29",
    "last": "2026-11-16",
    "rows": 3508,
-   "source": "yahoo-chart"
+   "source": "yahoo-chart",
+   "fix_version": "7c5ad25f5b"
   },
   "00631L": {
    "symbol": "00631L.TW",
@@ -28,7 +30,8 @@
    "first": "2014-10-31",
    "last": "2026-11-16",
    "rows": 2932,
-   "source": "yahoo-chart+seed"
+   "source": "yahoo-chart+seed",
+   "fix_version": "7c5ad25f5b"
   },
   "VT": {
    "symbol": "VT",
@@ -38,7 +41,8 @@
    "first": "2008-06-26",
    "last": "2026-11-17",
    "rows": 4628,
-   "source": "yahoo-chart"
+   "source": "yahoo-chart",
+   "fix_version": "7c5ad25f5b"
   },
   "VOO": {
    "symbol": "VOO",
@@ -48,7 +52,8 @@
    "first": "2010-09-09",
    "last": "2026-11-17",
    "rows": 4073,
-   "source": "yahoo-chart"
+   "source": "yahoo-chart",
+   "fix_version": "7c5ad25f5b"
   },
   "QQQ": {
    "symbol": "QQQ",
@@ -58,7 +63,8 @@
    "first": "1999-03-10",
    "last": "2026-11-17",
    "rows": 6967,
-   "source": "yahoo-chart"
+   "source": "yahoo-chart",
+   "fix_version": "7c5ad25f5b"
   },
   "QLD": {
    "symbol": "QLD",
@@ -68,7 +74,8 @@
    "first": "2006-06-21",
    "last": "2026-11-17",
    "rows": 5135,
-   "source": "yahoo-chart"
+   "source": "yahoo-chart",
+   "fix_version": "7c5ad25f5b"
   },
   "BND": {
    "symbol": "BND",
@@ -78,7 +85,8 @@
    "first": "2007-04-10",
    "last": "2026-11-17",
    "rows": 4935,
-   "source": "yahoo-chart"
+   "source": "yahoo-chart",
+   "fix_version": "7c5ad25f5b"
   },
   "TWII": {
    "symbol": "^TWII",
@@ -88,7 +96,8 @@
    "first": "1997-07-02",
    "last": "2026-11-17",
    "rows": 7198,
-   "source": "yahoo-chart"
+   "source": "yahoo-chart",
+   "fix_version": "7c5ad25f5b"
   },
   "GSPC": {
    "symbol": "^GSPC",
@@ -98,7 +107,8 @@
    "first": "1927-12-30",
    "last": "2026-11-17",
    "rows": 24838,
-   "source": "yahoo-chart"
+   "source": "yahoo-chart",
+   "fix_version": "7c5ad25f5b"
   },
   "SP500TR": {
    "symbol": "^SP500TR",
@@ -108,7 +118,8 @@
    "first": "1988-01-04",
    "last": "2026-11-17",
    "rows": 9793,
-   "source": "yahoo-chart"
+   "source": "yahoo-chart",
+   "fix_version": "7c5ad25f5b"
   },
   "USDTWD": {
    "symbol": "TWD=X",
@@ -118,7 +129,8 @@
    "first": "1983-10-03",
    "last": "2026-11-17",
    "rows": 10524,
-   "source": "yahoo+fred-seed"
+   "source": "yahoo+fred-seed",
+   "fix_version": "7c5ad25f5b"
   },
   "NDX": {
    "symbol": "^NDX",
@@ -128,9 +140,10 @@
    "first": "1985-10-01",
    "last": "2026-11-17",
    "rows": 10363,
-   "source": "yahoo-chart"
+   "source": "yahoo-chart",
+   "fix_version": "7c5ad25f5b"
   }
  },
- "updated": "2026-11-18 13:15",
+ "updated": "2026-11-18 13:17",
  "fix_version": "7c5ad25f5b"
 }
