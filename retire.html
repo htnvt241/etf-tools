@@ -2,7 +2,7 @@
 <html lang="zh-Hant"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
 <title>退休提領模擬｜ETF 工具箱</title>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=Noto+Sans+TC:wght@400;500;700&display=swap">
-<link rel="stylesheet" href="assets/style.css?v=1119c">
+<link rel="stylesheet" href="assets/style.css?v=1119d">
 </head><body>
 <div class="wrap">
 <header id="top"></header>
@@ -32,6 +32,12 @@
   <label class="chk"><input type="checkbox" id="avoid"><span>避開期間（不抽這幾年的走勢）<span id="avoidI"></span></span></label>
   <div class="row2" id="avoidBox" hidden><label>從（年）<input id="avoidA" type="number" min="1985" max="2026" step="1" value="2023"></label><label>到（年）<input id="avoidB" type="number" min="1985" max="2026" step="1" value="2026"></label></div>
   <label>報酬打折（每年少幾 %）<input id="hair" type="number" min="0" max="10" step="0.5" value="0"><span class="hint">保守起見，把抽到的每年報酬再扣掉這個數字。例如 1 代表每年少 1%。</span></label>
+  <label class="chk optchk"><input type="checkbox" id="opt"><span><b>穩健配置搜尋</b><br><span class="hint">試遍各種比例，找出 10,000 種未來都撐得過的配置</span></span></label>
+  <div id="optBox" hidden>
+    <div class="picks" id="optPicks"></div>
+    <label>目標成功率<select id="optTarget"><option value="1">100%</option><option value="0.99">99%</option><option value="0.95">95%</option></select></label>
+    <p class="hint" id="optH"></p>
+  </div>
   <button type="button" class="primary" id="go">開始模擬</button>
   <p class="hint" id="srcH"></p>
 </form>
@@ -39,9 +45,9 @@
 </div>
 <footer>報酬以還原股價（含息再投入）計算、美股換算成台幣（含匯率變動），未計手續費與稅。模擬方法：把組合的歷史月報酬切成「連續 12 個月」的區塊，每模擬一年就隨機抽一個區塊（保留真實的漲跌幅度、連續崩跌和各 ETF 之間的連動），共模擬 10,000 次。結果反映的是抽樣來源那段歷史的特性，不代表未來。本站僅供學習研究，不構成投資建議。</footer>
 </div>
-<script src="assets/core.js?v=1119c"></script>
-<script src="assets/chart.js?v=1119c"></script>
-<script src="assets/common.js?v=1119c"></script>
+<script src="assets/core.js?v=1119d"></script>
+<script src="assets/chart.js?v=1119d"></script>
+<script src="assets/common.js?v=1119d"></script>
 <script>
 (function(){
   const {fmt, TICKERS, ETF_LIST} = ET;
@@ -73,8 +79,24 @@
         <input data-act="w" type="number" min="0" max="100" step="1" value="${p.w}"><span class="pct">%</span>
         ${st.parts.length>1?`<button type="button" class="x" data-act="del" aria-label="移除">×</button>`:""}</div>`).join("")}
       ${st.parts.length<5?`<button type="button" class="addrow" data-act="add">＋ 加一檔</button>`:""}</div>`;
-    updSrc();
+    syncOpt(); updSrc();
   }
+  // ---------- 穩健配置搜尋：候選 ETF（和上面的組合連動：上面有的一定勾選） ----------
+  st.optPicks = new Set();
+  function syncOpt(){
+    st.parts.forEach(p=>st.optPicks.add(p.k));
+    while (st.optPicks.size > 5) { const extra = [...st.optPicks].find(k=>!st.parts.some(p=>p.k===k)); if (!extra) break; st.optPicks.delete(extra); }
+    $("optPicks").innerHTML = ETF_LIST.map(k=>`<label class="pick"><input type="checkbox" value="${k}" ${st.optPicks.has(k)?"checked":""}><i style="background:var(--s${TICKERS[k].color})"></i>${k}<small>${TICKERS[k].ccy==="USD"?"美":"台"} ${startYear(k)}</small></label>`).join("");
+    const n = st.optPicks.size, stp = n <= 3 ? 2 : n === 4 ? 5 : 10;
+    let c = 1; for (let i=1;i<n;i++) c = c * (100/stp + i) / i;
+    $("optH").innerHTML = n < 2 ? "請勾選至少 2 檔" : n > 5 ? "最多 5 檔" : `搜尋範圍：${[...st.optPicks].join("、")} 各 0%～100%，每 ${stp}% 一格，共 <b>${fmt.num(Math.round(c))}</b> 種比例，每種都跑 10,000 次模擬${n===5?"（5 檔時用 10% 一格，避免等太久）":""}。`;
+  }
+  $("optPicks").addEventListener("change", e=>{
+    const k = e.target.value;
+    if (e.target.checked) { if (st.optPicks.size >= 5) { e.target.checked = false; return; } st.optPicks.add(k); } else st.optPicks.delete(k);
+    syncOpt();
+  });
+  $("opt").addEventListener("change", e=>{ $("optBox").hidden = !e.target.checked; });
   $("pf").addEventListener("change", e=>{ const row = e.target.closest(".pr"); if (!row) return; const p = st.parts[+row.dataset.j];
     if (e.target.dataset.act === "k") p.k = e.target.value; else p.w = Math.max(0, Math.min(100, +e.target.value||0)); drawPf(); });
   $("pf").addEventListener("click", e=>{ const a = e.target.dataset.act; if (!a || e.target.tagName !== "BUTTON") return;
@@ -197,9 +219,73 @@
     const S = source(); updSrc();
     if (S.err || S.blocks.length < 12) { $("out").innerHTML = `<div class="card err">${S.err || "可抽樣的資料太少，請縮短避開期間，或改用資料較長的 ETF（或勾選推估）。"}</div>`; return; }
     $("out").innerHTML = '<div class="card loading">模擬中…</div>';
-    setTimeout(()=>simulate(S), 30);
+    setTimeout(()=>{ simulate(S); if ($("opt").checked) search(); }, 30);
   });
 
+  // ---------- 穩健配置搜尋 ----------
+  let worker = null;
+  function search(){
+    const keys = ETF_LIST.filter(k=>st.optPicks.has(k)), n = keys.length;
+    const box = document.createElement("section"); box.className = "card"; box.id = "optCard";
+    const first = $("out").querySelector(".card"); first.after(box);
+    if (n < 2 || n > 5) { box.innerHTML = '<h3>穩健配置搜尋</h3><p class="note">請在左邊勾選 2～5 檔 ETF。</p>'; return; }
+    // 各檔月底淨值（台幣）→ 共同月份的月報酬
+    const mv = keys.map(k=>{ const s = series(k), m = new Map();
+      for (let i=0;i<s.dates.length;i++) if (i===s.dates.length-1 || s.dates[i+1].slice(0,7)!==s.dates[i].slice(0,7)) m.set(s.dates[i].slice(0,7), { v: s.adj[i], d: s.dates[i] });
+      return m; });
+    let months = [...mv[0].keys()].filter(ym=>mv.every(m=>m.has(ym))).sort();
+    const lastD = mv[0].get(months[months.length-1]).d; if (lastD.slice(8) < "20") months.pop();
+    const Mn = months.length - 1, A = new Float64Array(Mn * n), yq = new Int32Array(Mn);
+    const per = ym => st.reb === "quarter" ? (+ym.slice(0,4))*4 + Math.floor((+ym.slice(5,7)-1)/3) : +ym.slice(0,4);
+    for (let m = 1; m <= Mn; m++) { for (let k = 0; k < n; k++) A[(m-1)*n+k] = mv[k].get(months[m]).v / mv[k].get(months[m-1]).v - 1; yq[m-1] = per(months[m]); }
+    const avoid = $("avoid").checked ? [Math.min(+$("avoidA").value, +$("avoidB").value), Math.max(+$("avoidA").value, +$("avoidB").value)] : null;
+    const allowed = months.slice(1).map(ym=>!avoid || +ym.slice(0,4) < avoid[0] || +ym.slice(0,4) > avoid[1]);
+    const blocks = []; for (let i = 0; i + 12 <= Mn; i++) { let ok = true; for (let j = i; j < i + 12; j++) if (!allowed[j]) { ok = false; break; } if (ok) blocks.push(i); }
+    if (blocks.length < 12) { box.innerHTML = '<h3>穩健配置搜尋</h3><p class="note">這幾檔的共同資料期間太短（或避開期間太長），無法搜尋。</p>'; return; }
+    const N = Math.max(5, Math.min(60, +$("years").value || 30));
+    const r = rng(777), B = new Uint16Array(SIMS * N); for (let i = 0; i < B.length; i++) B[i] = Math.floor(r() * blocks.length);
+    const step = n <= 3 ? 2 : n === 4 ? 5 : 10, target = +$("optTarget").value;
+    const ctx = { keys, n, step, target, src: `${months[1]}～${months[Mn]}${avoid?`（避開 ${avoid[0]}～${avoid[1]}）`:""}`, nYears: blocks.length ? allowed.filter(Boolean).length/12 : 0,
+      cap: Math.max(1, +$("cap").value || 0), amt: Math.max(0, +$("amt").value || 0), method: $("method").value };
+    box.innerHTML = `<h3>穩健配置搜尋<span class="sub">計算中…</span></h3><p class="note" id="optProg">準備中</p><div class="bar"><i id="optBar"></i></div>`;
+    if (worker) worker.terminate();
+    worker = new Worker("assets/retire-worker.js?v=1119e");
+    worker.onmessage = ev => { const m = ev.data;
+      if (m.type === "progress") { $("optProg").textContent = `試算各種比例：${fmt.num(m.done)} / ${fmt.num(m.total)}`; $("optBar").style.width = (m.done/m.total*100).toFixed(0)+"%"; return; }
+      renderSearch(box, m, ctx); };
+    worker.postMessage({ A, Mn, n, monthsYQ: yq, reb: st.reb, blocks: Int32Array.from(blocks), B, SIMS, N, cap: ctx.cap, amt: ctx.amt, method: ctx.method,
+      infl: (+$("infl").value || 0) / 100, hair: (+$("hair").value || 0) / 100, target, step });
+  }
+  function renderSearch(box, m, ctx){
+    const T = fmt.pct(ctx.target, 0);
+    const bars = w => `<div class="wbars">${ctx.keys.map((k,j)=>`<div class="wb"><span>${k}</span><div><i style="width:${(w[j]*100).toFixed(0)}%;background:var(--s${TICKERS[k].color})"></i></div><b>${Math.round(w[j]*100)}%</b></div>`).join("")}</div>`;
+    const card = (title, sub, x, extra) => `<div class="tier"><h4>${title}<small>${sub}</small></h4>${bars(x.w)}
+      <div class="tp"><div><small>成功率</small><b>${sp(x.succ)}</b></div><div><small>周圍比例最低成功率</small><b>${sp(x.nbMin)}</b></div>
+      <div><small>較差 10% 期末資產（實質）</small><b>${money(x.p10)}</b></div><div><small>期末資產中位數（實質）</small><b>${money(x.med)}</b></div></div>${extra||""}
+      <button type="button" class="apply" data-w="${x.w.join(",")}">套用到上面的組合，重新模擬</button></div>`;
+    let h = `<h3>穩健配置搜尋<span class="sub">${ctx.keys.join("、")}，每 ${ctx.step}% 一格，共 ${fmt.num(m.M)} 種比例 × 10,000 次模擬｜目標成功率 ${T}｜計算 ${(m.ms/1000).toFixed(1)} 秒</span></h3>`;
+    if (m.robust) {
+      h += `<p class="note" style="margin:0 0 10px">共有 <b>${fmt.num(m.countOk)}</b> 種比例的成功率達到 ${T}。${m.plateau ? "以下只從「高原型」挑選：連周圍比例（任兩檔之間移動 " + (ctx.step===10?"10%":"5%～10%") + "）的成功率也都達標，比較不會因為比例稍微偏掉就失敗。" : "<b>但沒有任何比例符合高原型</b>（周圍比例也都達標），以下是本身達標的配置，比例偏掉一點就可能掉到目標以下，請保守看待。"}</p>
+        <div class="tiers">${card("最穩健", "達標的配置中，倒楣時（較差 10%）剩最多錢", m.robust, `<p class="peak">這個配置要維持 ${T} 成功率，第一年最多可以領 <b>${money(m.robustSafe)}</b>（總資產的 ${fmt.pct(m.robustSafe/ctx.cap,1)}）。</p>`)}
+        ${m.rich && m.rich.w.join() !== m.robust.w.join() ? card("對照：期末資產最多", "達標的配置中，期末資產中位數最高", m.rich) : ""}</div>`;
+    } else {
+      h += `<p class="err" style="margin:0 0 10px">在目前的提領金額下，沒有任何比例的成功率能達到 ${T}。以下是成功率最高的配置：</p>
+        <div class="tiers">${card("成功率最高", "所有比例中成功率最高", m.top, `<p class="peak">用這個配置，第一年提領降到 <b>${money(m.topSafe)}</b>（總資產的 ${fmt.pct(m.topSafe/ctx.cap,1)}，每月約 ${money(m.topSafe/12)}）以下，成功率就能達到 ${T}。</p>`)}</div>`;
+    }
+    h += `<p class="note">搜尋的抽樣來源是這幾檔的共同期間 ${ctx.src}，約 ${ctx.nYears.toFixed(0)} 年，可能和上面「你的組合」的抽樣期間不同。所有比例都用同一批抽樣，比較才公平。${T} 的意思是「從這段歷史抽出的 10,000 種未來全部撐過去」，不是保證。</p>`;
+    box.innerHTML = h;
+    box.querySelectorAll("button.apply").forEach(b=>b.addEventListener("click", ()=>{
+      const w = b.dataset.w.split(",").map(Number);
+      st.parts = ctx.keys.map((k,j)=>({ k, w: Math.round(w[j]*100) })).filter(p=>p.w>0);
+      drawPf();
+      const S = source(); simulate(S);
+      $("out").querySelector(".card").after(box);
+      window.scrollTo({ top: 0, behavior: "smooth" });
+    }));
+  }
+
+  // 成功率：接近 100% 但沒到時多顯示一位，避免 99.98% 被四捨五入成 100.0%
+  const sp = x => x < 1 && x >= 0.9995 ? (Math.floor(x*10000)/100).toFixed(2) + "%" : fmt.pct(x, 1);
   const money = v => !isFinite(v) ? "—" : v >= 1e8 ? fmt.num(v/1e8, 2) + " 億" : v >= 1e4 ? fmt.num(v/1e4, v < 1e5 ? 1 : 0) + " 萬" : fmt.num(v, 0);
   function pctl(arr, p){ const a = Float64Array.from(arr).sort(); return a[Math.min(a.length-1, Math.max(0, Math.round(p*(a.length-1))))]; }
 
@@ -230,7 +316,7 @@
     const lvl = succ >= 0.95 ? "高" : succ >= 0.85 ? "中等" : "偏低";
     let h = `<section class="card"><h3>模擬結果<span class="sub">${fmt.num(SIMS)} 次模擬，每次 ${N} 年｜${$("method").selectedOptions[0].text}｜第一年領 ${money(o.amt)}（總資產的 ${fmt.pct(o.amt/o.cap,2)}）${o.hair?`｜報酬每年打折 ${fmt.pct(o.hair,1)}`:""}${o.estShare>0?'<span class="esttag">含推估</span>':""}</span></h3>
       <div class="kpis">
-        <div class="kpi"><small>成功率${info(N+" 年內每一年都領得到足額生活費的模擬次數比例。")}</small><b class="${succ<0.85?"pos":""}">${fmt.pct(succ,1)}</b><span class="sub">成功機率${lvl}</span></div>
+        <div class="kpi"><small>成功率${info(N+" 年內每一年都領得到足額生活費的模擬次數比例。")}</small><b class="${succ<0.85?"pos":""}">${sp(succ)}</b><span class="sub">成功機率${lvl}</span></div>
         ${o.method==="pct" ? `<div class="kpi"><small>生活費最少的一年（較差 10%）${info("固定比例永遠不會用完，但生活費會變動。這是每次模擬中「最少的那一年」實質生活費，排在較差 10% 的數字。")}</small><b>${money(minT)}</b><span class="sub">每月約 ${money(minT/12)}</span></div>`
           : `<div class="kpi"><small>安全提領金額（成功率 90%）${info("第一年最多領多少，成功率還能維持 90%。用同一批抽樣結果反覆試算得出。")}</small><b>${money(o.safe90)}</b><span class="sub">總資產的 ${fmt.pct(o.safe90/o.cap,1)}，每月約 ${money(o.safe90/12)}</span></div>
              <div class="kpi"><small>安全提領金額（成功率 95%）</small><b>${money(o.safe95)}</b><span class="sub">總資產的 ${fmt.pct(o.safe95/o.cap,1)}，每月約 ${money(o.safe95/12)}</span></div>`}
@@ -259,7 +345,7 @@
     const cur = o.amt / o.cap; if (!rates.some(r=>Math.abs(r-cur)<1e-9)) rates.push(cur);
     rates.sort((a,b)=>a-b);
     $("sens").innerHTML = rates.map(r=>{ const a = o.cap * r, s = runAll(o.F, N, o.cap, a, o.method, o.infl, false).success;
-      return `<tr${Math.abs(r-cur)<1e-9?' style="font-weight:700"':""}><td>${money(a)}</td><td>${fmt.pct(r,1)}</td><td>${money(a/12)}</td><td class="${s<0.85?"pos":""}">${fmt.pct(s,1)}</td></tr>`; }).join("");
+      return `<tr${Math.abs(r-cur)<1e-9?' style="font-weight:700"':""}><td>${money(a)}</td><td>${fmt.pct(r,1)}</td><td>${money(a/12)}</td><td class="${s<0.85?"pos":""}">${sp(s)}</td></tr>`; }).join("");
   }
 })();
 </script>
