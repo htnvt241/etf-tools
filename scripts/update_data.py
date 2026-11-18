@@ -334,7 +334,8 @@ def main():
         if name not in raw:
             continue
         seed_last = seed_last_date(name) if name in SEEDED else None
-        issues = checks.run_all(name, raw[name], raw, old[name] if same_fix else None, seed_last)
+        fixed_dates = {f["date"] for f in fixed_log if f["ticker"] == name}
+        issues = checks.run_all(name, raw[name], raw, old[name] if same_fix else None, seed_last, fixed_dates)
         for i in issues:
             k = checks.key(i)
             if k in known_note:

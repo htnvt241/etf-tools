@@ -97,7 +97,7 @@ def check_jump(name, rows, all_rows):
     return out
 
 
-def check_ratio(name, rows, seed_last=None):
+def check_ratio(name, rows, seed_last=None, fixed=()):
     """還原價÷原始價：除息日才會變（往現在越接近 1），而且一次變動不會太大。"""
     out = []
     if name not in HAS_RATIO:
@@ -107,7 +107,7 @@ def check_ratio(name, rows, seed_last=None):
         if seed_last and d <= seed_last:
             continue  # 校對過的底沒有原始價，不檢查
         q = a / c
-        if prev is not None:
+        if prev is not None and prev[0] not in fixed:  # 剛修正過的隔天，比例本來就會小幅移動
             ch = q / prev[1] - 1
             if ch < -0.005 or ch > 0.15:
                 out.append({"ticker": name, "type": "ratio", "date": d,
@@ -143,12 +143,12 @@ def check_rewrite(name, rows, old_rows):
     return out
 
 
-def run_all(name, rows, all_rows, old_rows=None, seed_last=None):
+def run_all(name, rows, all_rows, old_rows=None, seed_last=None, fixed=()):
     issues = []
     issues += check_missing(name, rows, all_rows)
     issues += check_gap(name, rows)
     issues += check_jump(name, rows, all_rows)
-    issues += check_ratio(name, rows, seed_last)
+    issues += check_ratio(name, rows, seed_last, fixed)
     issues += check_rewrite(name, rows, old_rows)
     return issues
 
