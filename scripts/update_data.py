@@ -48,7 +48,7 @@ TICKERS = [
 # 底之後的新交易日，再接上 Yahoo 的每日漲跌幅。
 SEEDED = {"0050", "00631L"}
 # 修改補資料／修正的邏輯時把這個數字加 1，下次執行就不會把「邏輯改變造成的歷史變動」誤判成資料被竄改
-LOGIC_VERSION = "2"
+LOGIC_VERSION = "3"
 
 UA = ("Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 "
       "(KHTML, like Gecko) Chrome/124.0 Safari/537.36")
@@ -157,8 +157,8 @@ def merge_seed(name, rows, ref_rows=None, lev=1, skip=()):
 
 
 def merge_fx_seed(yahoo):
-    """Yahoo 的匯率 2004 年才開始，而且 2004/10–2006/05、2008/07–08 有缺口。
-    data/seed/USDTWD.csv（美聯準會 FRED 的歷史資料，手動下載一次）用來補 Yahoo 開始之前和缺口裡的日子。
+    """Yahoo 的匯率 2004 年才開始，2004/10–2006/05、2008/07–08 有缺口，早期數值也有偏差。
+    data/seed/USDTWD.csv 是美聯準會 FRED 的歷史資料（1983 年起，手動下載一次）。
     （FRED 網站擋 GitHub 的伺服器，沒辦法每天自動抓。）"""
     path = os.path.join(DATA, "seed", "USDTWD.csv")
     if not os.path.exists(path):
@@ -172,18 +172,12 @@ def merge_fx_seed(yahoo):
                 continue
             if v > 0:
                 seed.append((row[0], v, v))
-    ydates = [r[0] for r in yahoo]
-    add = []
-    for d, c, a in seed:
-        if d < ydates[0]:
-            add.append((d, c, a))
-            continue
-        k = bisect.bisect_left(ydates, d)
-        if 0 < k < len(ydates) and ydates[k] != d:
-            gap = (datetime.fromisoformat(ydates[k]) - datetime.fromisoformat(ydates[k - 1])).days
-            if gap > 5:
-                add.append((d, c, a))
-    return dedupe(yahoo + add), bool(add)
+    if not seed:
+        return yahoo, False
+    # FRED（美聯準會中午匯率）比 Yahoo 早期資料準確（Yahoo 2004–2008 偏差 3–4%），
+    # 所以 FRED 有的日子一律用 FRED，FRED 最後一天之後才接 Yahoo。
+    last = seed[-1][0]
+    return seed + [r for r in yahoo if r[0] > last], True
 
 
 def fetch_yfinance(symbol):
