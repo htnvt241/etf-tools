@@ -10,6 +10,7 @@
 安全機制：抓失敗、或抓到的資料筆數明顯比舊檔少，就保留舊檔不覆蓋。
 """
 import csv
+import hashlib
 import json
 import math
 import os
@@ -18,6 +19,9 @@ import time
 from datetime import datetime, timezone, timedelta
 
 import requests
+
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+import checks  # noqa: E402
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 DATA = os.path.join(ROOT, "data")
@@ -96,12 +100,29 @@ def parse_chart_json(js):
 
 
 def merge_seed(name, rows):
-    """以 data/seed/<name>.csv 為底，之後的日子用 Yahoo 的每日漲跌幅接上去。"""
+    """以 data/seed/<name>.csv 為底，之後的日子用 Yahoo 的每日漲跌幅接上去。
+    底裡面若連續缺 2 天以上、而 Yahoo 有資料，也用 Yahoo 的走勢補進去（頭尾對齊底的價格）。"""
     path = os.path.join(DATA, "seed", f"{name}.csv")
     with open(path, newline="", encoding="utf-8") as f:
         seed = [(d, float(a)) for d, a in list(csv.reader(f))[1:]]
-    last_d, last_v = seed[-1]
     ymap = {d: (c, a) for d, c, a in rows}
+    ydates = [r[0] for r in rows]
+    # 補底的缺口
+    filled = []
+    for k in range(1, len(seed)):
+        p_d, p_v = seed[k - 1]
+        q_d, q_v = seed[k]
+        mids = [d for d in ydates if p_d < d < q_d]
+        if len(mids) >= 2 and p_d in ymap and q_d in ymap:
+            yp, yq = ymap[p_d][1], ymap[q_d][1]
+            adjust = (q_v / p_v) / (yq / yp)
+            for j, d in enumerate(mids, 1):
+                frac = j / (len(mids) + 1)
+                filled.append((d, p_v * (ymap[d][1] / yp) * adjust ** frac))
+    if filled:
+        print(f"[{name}] 底資料缺 {len(filled)} 天，已用 Yahoo 走勢補上：{filled[0][0]} ~ {filled[-1][0]}")
+        seed = sorted(seed + filled)
+    last_d, last_v = seed[-1]
     out = [(d, a, a) for d, a in seed]
     if last_d in ymap:  # 底的最後一天，收盤價用 Yahoo 的實際價格
         out[-1] = (last_d, ymap[last_d][0], last_v)
@@ -110,18 +131,43 @@ def merge_seed(name, rows):
         print(f"[{name}] Yahoo 找不到 {last_d} 的資料，無法接上新資料")
         return out
     v = last_v
-    lim = 0.45 if name == "00631L" else 0.25
     for d, c, a in rows:
         if d <= last_d:
             continue
-        r = a / prev[1] - 1
-        if abs(r) > lim:
-            print(f"[{name}] {d} 單日變動 {r:+.1%} 不合理，停在前一天，請人工檢查")
-            break
-        v *= 1 + r
+        v *= a / prev[1]
         out.append((d, c, v))
         prev = (c, a)
     return out
+
+
+def fetch_fred_fx():
+    """美聯準會（FRED）的美元兌台幣日資料，1983 年起，沒有 Yahoo 的大缺口；但會延遲幾天。"""
+    url = "https://fred.stlouisfed.org/graph/fredgraph.csv?id=DEXTAUS"
+    r = requests.get(url, headers={"User-Agent": UA}, timeout=60)
+    r.raise_for_status()
+    rows = []
+    for line in r.text.strip().splitlines()[1:]:
+        parts = line.split(",")
+        if len(parts) < 2:
+            continue
+        try:
+            v = float(parts[1])
+        except ValueError:
+            continue  # FRED 用 "." 表示假日沒資料
+        if v > 0:
+            rows.append((parts[0], v, v))
+    if len(rows) < 5000:
+        raise RuntimeError(f"FRED 資料太少：{len(rows)} 筆")
+    return rows
+
+
+def merge_fx(fred, yahoo):
+    """FRED 當歷史，FRED 最後一天之後接 Yahoo。"""
+    last = fred[-1][0]
+    ymap = {d: c for d, c, _ in yahoo}
+    if last in ymap and abs(ymap[last] / fred[-1][1] - 1) > 0.02:
+        print(f"[USDTWD] 注意：{last} FRED {fred[-1][1]} 和 Yahoo {ymap[last]} 差超過 2%")
+    return fred + [r for r in yahoo if r[0] > last]
 
 
 def fetch_yfinance(symbol):
@@ -183,15 +229,17 @@ def write_csv(path, rows, decimals):
                         f"{a:.{decimals}f}".rstrip("0").rstrip(".")])
 
 
-def sanity_warnings(name, kind, rows):
-    """列出單日漲跌超過 25%（非槓桿）或 45%（槓桿）的日子，寫進 log 方便人工檢查。"""
-    lim = 0.45 if name in ("00631L", "QLD") else 0.25
-    warns = []
-    for i in range(1, len(rows)):
-        r = rows[i][2] / rows[i - 1][2] - 1
-        if abs(r) > lim:
-            warns.append(f"{rows[i][0]} {r:+.1%}")
-    return warns
+def seed_last_date(name):
+    with open(os.path.join(DATA, "seed", f"{name}.csv"), encoding="utf-8") as f:
+        return f.read().strip().splitlines()[-1].split(",")[0]
+
+
+def load_known():
+    path = os.path.join(DATA, "known_issues.json")
+    if not os.path.exists(path):
+        return {"fix": [], "ignore": []}
+    with open(path, encoding="utf-8") as f:
+        return json.load(f)
 
 
 def main():
@@ -202,47 +250,117 @@ def main():
         with open(meta_path, encoding="utf-8") as f:
             meta = json.load(f)
     meta.setdefault("tickers", {})
+    known = load_known()
+    known_note = {e["key"]: e.get("note", "") for e in known["fix"] + known["ignore"]}
+    fix_keys = {e["key"] for e in known["fix"]}
+    # 修正清單或底資料變了，歷史本來就會變，這次不做「歷史被改動」檢查
+    fix_version = hashlib.md5((json.dumps(sorted(fix_keys)) + "".join(
+        str(os.path.getsize(os.path.join(DATA, "seed", f))) for f in sorted(os.listdir(os.path.join(DATA, "seed")))
+    )).encode()).hexdigest()[:10]
+    same_fix = meta.get("fix_version") == fix_version
 
-    ok_count = 0
+    # 1) 抓資料
+    raw, src, old = {}, {}, {}
     for name, sym, label, kind, ccy in TICKERS:
         path = os.path.join(DATA, f"{name}.csv")
-        old = read_existing(path)
-        rows, src = None, None
+        old[name] = [(d, float(c), float(a)) for d, c, a in read_existing(path)]
+        rows = None
         try:
-            rows, src = fetch_chart_api(sym), "yahoo-chart"
+            rows, src[name] = fetch_chart_api(sym), "yahoo-chart"
         except Exception as e:  # noqa: BLE001
             print(f"[{name}] chart API 失敗：{e}；改用 yfinance")
             try:
-                rows, src = fetch_yfinance(sym), "yfinance"
+                rows, src[name] = fetch_yfinance(sym), "yfinance"
             except Exception as e2:  # noqa: BLE001
                 print(f"[{name}] yfinance 也失敗：{e2}；保留舊資料")
         if rows and kind == "fx":
             rows = clean_fx(rows)
+            try:
+                rows = merge_fx(fetch_fred_fx(), rows)
+                src[name] = "fred+yahoo"
+            except Exception as e:  # noqa: BLE001
+                print(f"[USDTWD] FRED 抓取失敗：{e}；只用 Yahoo（2004–2006 有缺口）")
         if rows and name in SEEDED:
             rows = merge_seed(name, rows)
-            src += "+seed"
-        if not rows:
-            continue
-        if old and len(rows) < len(old) * 0.97:
-            print(f"[{name}] 新資料只有 {len(rows)} 筆，比舊資料 {len(old)} 筆少太多；保留舊資料")
-            continue
-        decimals = 4 if kind != "index" else 2
-        write_csv(path, rows, decimals)
-        warns = sanity_warnings(name, kind, rows)
-        if warns:
-            print(f"[{name}] 請檢查異常單日變動：{', '.join(warns[:10])}")
-        meta["tickers"][name] = {
-            "symbol": sym, "label": label, "kind": kind, "ccy": ccy,
-            "first": rows[0][0], "last": rows[-1][0], "rows": len(rows), "source": src,
-        }
-        ok_count += 1
-        print(f"[{name}] OK {rows[0][0]} ~ {rows[-1][0]}，{len(rows)} 筆（{src}）")
+            src[name] += "+seed"
+        if rows:
+            raw[name] = rows
         time.sleep(1)
 
-    meta["updated"] = datetime.now(timezone(timedelta(hours=8))).strftime("%Y-%m-%d %H:%M")
+    # 2) 套用已確認的修正（依 TICKERS 順序：0050 先於 00631L、QQQ 先於 QLD）
+    fixed_log = []
+    for name, *_ in TICKERS:
+        dates = {k.split("|")[2] for k in fix_keys if k.startswith(name + "|")}
+        if not dates or name not in raw or name not in checks.CROSS:
+            continue
+        ref, lev, _tol = checks.CROSS[name]
+        if ref not in raw:
+            continue
+        raw[name], done = checks.apply_fixes(raw[name], raw[ref], lev, dates)
+        for d in done:
+            fixed_log.append({"ticker": name, "date": d, "note": known_note.get(f"{name}|jump|{d}", "")})
+        if done:
+            print(f"[{name}] 已用 {('2×' if lev == 2 else '')}{ref} 修正 {len(done)} 天：{', '.join(sorted(done))}")
+
+    # 3) 檢查
+    new_issues, ignored, stale = [], [], []
+    blocked = set()
+    for name, *_ in TICKERS:
+        if name not in raw:
+            continue
+        seed_last = seed_last_date(name) if name in SEEDED else None
+        issues = checks.run_all(name, raw[name], raw, old[name] if same_fix else None, seed_last)
+        for i in issues:
+            k = checks.key(i)
+            if k in known_note:
+                if k not in fix_keys:
+                    ignored.append(dict(i, note=known_note[k]))
+            elif i["type"] == "stale":
+                stale.append(i)
+            else:
+                new_issues.append(i)
+                blocked.add(name)
+    for i in new_issues:
+        print(f"[{i['ticker']}] ⚠ 新問題 {i['type']} {i['date']}：{i['detail']}")
+
+    # 4) 存檔（有新問題的標的保留舊資料不覆蓋）
+    ok_count = 0
+    for name, sym, label, kind, ccy in TICKERS:
+        if name not in raw:
+            continue
+        rows = raw[name]
+        if name in blocked and old[name]:
+            print(f"[{name}] 有新問題，這次不更新，保留舊資料")
+            continue
+        if old[name] and len(rows) < len(old[name]) * 0.97:
+            print(f"[{name}] 新資料只有 {len(rows)} 筆，比舊資料 {len(old[name])} 筆少太多；保留舊資料")
+            blocked.add(name)
+            new_issues.append({"ticker": name, "type": "rewrite", "date": rows[-1][0],
+                               "detail": f"新資料只有 {len(rows)} 筆，比上次 {len(old[name])} 筆少太多"})
+            continue
+        write_csv(os.path.join(DATA, f"{name}.csv"), rows, 4 if kind != "index" else 2)
+        meta["tickers"][name] = {
+            "symbol": sym, "label": label, "kind": kind, "ccy": ccy,
+            "first": rows[0][0], "last": rows[-1][0], "rows": len(rows), "source": src.get(name, ""),
+        }
+        ok_count += 1
+        print(f"[{name}] OK {rows[0][0]} ~ {rows[-1][0]}，{len(rows)} 筆（{src.get(name, '')}）")
+
+    now = datetime.now(timezone(timedelta(hours=8))).strftime("%Y-%m-%d %H:%M")
+    meta["updated"] = now
+    meta["fix_version"] = fix_version
     with open(meta_path, "w", encoding="utf-8") as f:
         json.dump(meta, f, ensure_ascii=False, indent=1)
-    print(f"完成：{ok_count}/{len(TICKERS)} 檔更新成功")
+    report = {
+        "checked": now,
+        "status": "problem" if new_issues else "ok",
+        "new": new_issues, "blocked": sorted(blocked), "stale": stale,
+        "fixed": fixed_log, "ignored": ignored,
+    }
+    with open(os.path.join(DATA, "check.json"), "w", encoding="utf-8") as f:
+        json.dump(report, f, ensure_ascii=False, indent=1)
+    print(f"完成：{ok_count}/{len(TICKERS)} 檔更新；新問題 {len(new_issues)} 個、"
+          f"已修正 {len(fixed_log)} 天、已確認真實或無害 {len(ignored)} 個、落後 {len(stale)} 檔")
     if ok_count == 0:
         sys.exit(1)
 

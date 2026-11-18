@@ -9,6 +9,7 @@ on:
 
 permissions:
   contents: write
+  issues: write
 
 concurrency:
   group: update-data
@@ -24,7 +25,7 @@ jobs:
           python-version: "3.12"
       - name: 安裝套件
         run: pip install requests yfinance
-      - name: 抓最新股價
+      - name: 抓最新股價並檢查
         run: python scripts/update_data.py
       - name: 有變動就存回專案
         run: |
@@ -36,4 +37,23 @@ jobs:
           else
             git commit -m "更新股價 $(TZ=Asia/Taipei date +'%Y-%m-%d %H:%M')"
             git push
+          fi
+      - name: 資料檢查有問題就開 Issue 通知（會寄 email）
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          status=$(python -c "import json;print(json.load(open('data/check.json'))['status'])")
+          python scripts/check_report.py > report.md
+          num=$(gh issue list --state open --label data-check --json number --jq '.[0].number' 2>/dev/null || true)
+          if [ "$status" = "problem" ]; then
+            gh label create data-check --color d93f0b --description "資料檢查" --force >/dev/null 2>&1 || true
+            if [ -n "$num" ]; then
+              gh issue comment "$num" -F report.md
+            else
+              gh issue create --title "⚠️ 股價資料檢查發現問題" --label data-check -F report.md
+            fi
+            echo "::error::資料檢查發現新問題，詳見 Issue"
+            exit 1
+          elif [ -n "$num" ]; then
+            gh issue close "$num" -c "$(cat report.md)"
           fi

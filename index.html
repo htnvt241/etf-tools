@@ -17,6 +17,8 @@
 <div class="section-t">ETF<span class="sub">（報酬含息；點卡片可直接去回測）</span></div>
 <div class="tiles" id="tiles"></div>
 
+<section class="card" id="check"><h3>資料檢查</h3><div class="loading">讀取中…</div></section>
+
 <footer>資料來源：Yahoo Finance，每個交易日收盤後自動更新。指數為價格指數（不含股息），ETF 報酬以還原股價（含息）計算。本站僅供學習研究，不構成投資建議。</footer>
 </div>
 <script src="assets/core.js"></script>
@@ -68,6 +70,25 @@
     }).catch(e=>{ box.classList.add("err"); box.innerHTML = "讀取資料失敗："+e.message; });
   }
   indexCard("TWII"); indexCard("GSPC");
+
+  // ---- 資料檢查 ----
+  const TYPE = {missing:"缺資料", stale:"資料落後", gap:"資料中斷", jump:"跳格", ratio:"原始／還原價異常", rewrite:"歷史被改動"};
+  function renderCheck(c){
+    const box = document.getElementById("check");
+    const row = (i, note) => `<tr><td>${i.ticker}</td><td>${TYPE[i.type]||i.type||""}</td><td>${i.date}</td><td class="wrap">${note!==undefined?note:i.detail}</td></tr>`;
+    const tbl = (rows, head) => `<div class="tw"><table class="lt"><thead><tr><th>標的</th><th>類型</th><th>日期</th><th>${head}</th></tr></thead><tbody>${rows}</tbody></table></div>`;
+    let h = `<h3>資料檢查${ETUI.info("每次自動更新時檢查：① 缺資料：同市場指數有交易、ETF 卻沒資料；② 跳格：ETF 單日漲跌和相關指數差太多（例如 0050 對照加權指數、00631L 對照 2 倍的 0050）；③ 原始／還原價異常：還原價÷原始價的比例在非除息日突然改變；④ 歷史被改動：和上次存的資料相比，過去的價格被改掉。發現新問題時，那一檔不更新、保留舊資料，並在 GitHub 開 Issue 寄 email 通知。")}<span class="sub">${c.checked} 檢查</span></h3>`;
+    if (c.status === "problem") {
+      h += `<p class="err" style="margin:0 0 8px">⚠ 發現 ${c.new.length} 個新問題，以下標的暫停更新、沿用上一次的資料：<b>${c.blocked.join("、")}</b></p>` + tbl(c.new.map(i=>row(i)).join(""), "說明");
+    } else {
+      h += `<p style="margin:0">✓ 沒有發現新問題。</p>`;
+    }
+    if (c.stale && c.stale.length) h += `<p class="note">資料落後（通常是資料源還沒更新，下次會補上）：${c.stale.map(i=>i.ticker+"（到 "+i.date+"）").join("、")}</p>`;
+    if (c.fixed && c.fixed.length) h += `<details><summary>已修正的錯誤資料 ${c.fixed.length} 天（用相關指數當天的漲跌取代）</summary>${tbl(c.fixed.map(i=>row(Object.assign({type:"jump"},i), i.note)).join(""), "原因")}</details>`;
+    if (c.ignored && c.ignored.length) h += `<details><summary>已確認為真實事件或無害的異常 ${c.ignored.length} 個</summary>${tbl(c.ignored.map(i=>row(i, i.note+"<br><span class=sub>"+i.detail+"</span>")).join(""), "原因")}</details>`;
+    box.innerHTML = h;
+  }
+  if (window.ETCheck) renderCheck(window.ETCheck); else document.addEventListener("etcheck", e=>renderCheck(e.detail));
 
   // ---- ETF 卡片 ----
   const tiles = document.getElementById("tiles");

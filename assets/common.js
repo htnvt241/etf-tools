@@ -15,7 +15,15 @@
       PAGES.map(([h, t, soon]) => `<a href="${h}" class="${h === here ? "on" : ""}${soon ? " soon" : ""}">${t}</a>`).join("")
     }</nav><span class="updated" id="updated"></span>`;
     ET.loadMeta().then(m => {
-      if (m && m.updated) document.getElementById("updated").textContent = "資料更新：" + m.updated;
+      if (m && m.updated) document.getElementById("updated").insertAdjacentText("afterbegin", "資料更新：" + m.updated);
+    }).catch(() => {});
+    fetch("data/check.json", { cache: "no-cache" }).then(r => r.ok ? r.json() : null).then(c => {
+      if (!c) return;
+      const bad = c.status === "problem";
+      document.getElementById("updated").insertAdjacentHTML("beforeend",
+        ` <a class="chk-badge ${bad ? "bad" : "good"}" href="index.html#check">${bad ? "⚠ 資料檢查：" + c.new.length + " 個問題" : "✓ 資料檢查正常"}</a>`);
+      window.ETCheck = c;
+      document.dispatchEvent(new CustomEvent("etcheck", { detail: c }));
     }).catch(() => {});
   }
   // ⓘ 說明：滑過或點擊顯示

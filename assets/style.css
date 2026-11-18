@@ -121,3 +121,13 @@ td.est,span.est{color:var(--est)}
 .section-t{font-size:13px;color:var(--mute);margin:8px 0 -4px;font-weight:500;letter-spacing:.04em}
 .loading{color:var(--mute);padding:30px;text-align:center}
 footer{color:var(--mute);font-size:12px;margin-top:8px;line-height:1.7}
+
+/* 資料檢查 */
+.chk-badge{margin-left:10px;padding:2px 8px;border-radius:10px;font-size:11.5px;text-decoration:none;border:1px solid var(--line)}
+.chk-badge.good{color:var(--accent)}
+.chk-badge.bad{color:var(--bg);background:var(--up);border-color:var(--up);font-weight:500}
+details{margin-top:10px}
+details summary{cursor:pointer;color:var(--mute);font-size:13px}
+details table{margin-top:6px}
+td.wrap{white-space:normal;text-align:left;font-family:var(--font);min-width:240px}
+.lt th,.lt td{text-align:left}
