@@ -5,6 +5,9 @@ on:
     # GitHub 的排程用 UTC 時間
     - cron: "17 7 * * 1-5"    # 台灣 15:17，台股收盤後
     - cron: "43 22 * * 1-5"   # 台灣隔天 06:43，美股收盤後
+    # GitHub 的排程偶爾會延遲或漏跑，多排兩個備援時間（資料沒變就不會產生新紀錄）
+    - cron: "37 9 * * 1-5"    # 台灣 17:37
+    - cron: "11 1 * * 2-6"    # 台灣 09:11
   workflow_dispatch:           # 也可以在 GitHub 網頁上手動按「Run workflow」
 
 permissions:
