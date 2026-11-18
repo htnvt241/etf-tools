@@ -48,18 +48,29 @@
   if (qs.get("t") && st.picks.length) { const other = TICKERS[st.picks[0]].ccy === "USD" ? "0050" : "VOO"; st.picks.push(other); }
 
   $("picks").innerHTML = ETF_LIST.map(k=>`<label class="pick"><input type="checkbox" value="${k}" ${st.picks.includes(k)?"checked":""}><i style="background:var(--s${TICKERS[k].color})"></i>${k}<small>${TICKERS[k].ccy==="USD"?"美":"台"}</small></label>`).join("");
-  $("extI").innerHTML = info("有些 ETF 上市比較晚。勾選後，用追蹤相同指數的標的把歷史往前延伸：006208 用 0050、00631L 用 0050 的 2 倍、QLD 用 QQQ 的 2 倍、VOO 用 S&P 500 含息報酬指數。每年的成本差異，用兩者都有資料的重疊期間自動校準。推估的部分在圖上以虛線、表格中以灰色顯示。VT、QQQ、BND、0050 沒有延伸。");
+  $("extI").innerHTML = info("有些 ETF 上市比較晚。勾選後，用追蹤相同指數的標的把歷史往前延伸：006208 用 0050、00631L 用 0050 的 2 倍、QLD 用 QQQ 的 2 倍、VOO 用 S&P 500 含息報酬指數、QQQ 用那斯達克 100 指數。每年的成本（與股息）差異，用兩者都有資料的重疊期間自動校準。推估的部分：圖上以淺灰底帶＋虛線、每年報酬以斜線淡色、表格以「推估」標籤顯示。VT、BND、0050 沒有延伸。");
 
   // ---------- 資料 ----------
   const raw = {};
-  const need = ETF_LIST.concat(["SP500TR","USDTWD"]);
+  const need = ETF_LIST.concat(["SP500TR","NDX","USDTWD"]);
   Promise.all(need.map(k=>ET.load(k).then(s=>raw[k]=s).catch(()=>null))).then(()=>{
     if (!raw.USDTWD) $("ccy").querySelector('[data-v="TWD"]').disabled = true;
     // 每檔標示資料從哪一年開始
     $("picks").querySelectorAll(".pick").forEach(lb=>{ const k = lb.querySelector("input").value;
-      if (raw[k]) lb.querySelector("small").textContent += " " + raw[k].dates[0].slice(0,4); });
+      if (raw[k]) { lb.querySelector("small").dataset.y = raw[k].dates[0].slice(0,4); } });
+    updPickYears();
     run();
   });
+
+  // 標的旁顯示資料起始年；勾選推估時，有延伸的標的另外顯示推估可到哪一年
+  function updPickYears(){
+    $("picks").querySelectorAll(".pick").forEach(lb=>{
+      const k = lb.querySelector("input").value, sm = lb.querySelector("small"), y = sm.dataset.y || "";
+      const spec = TICKERS[k].ext, base = spec && raw[spec.base];
+      const ey = st.ext && base ? base.dates[0].slice(0,4) : null;
+      sm.innerHTML = (TICKERS[k].ccy==="USD"?"美":"台") + " " + y + (ey && ey < y ? ` <span class="est">推估 ${ey}</span>` : "");
+    });
+  }
 
   // 依目前設定做出各檔的序列（延伸 → 換幣別）
   const calib = {};
@@ -92,7 +103,7 @@
       run(); });
   }
   segBind("mode","mode"); segBind("ccy","ccy");
-  $("ext").addEventListener("change", e=>{ st.ext = e.target.checked; st.start = null; run(); });
+  $("ext").addEventListener("change", e=>{ st.ext = e.target.checked; st.start = null; updPickYears(); run(); });
   $("amt").addEventListener("change", run);
   $("start").addEventListener("change", e=>{ st.start = e.target.value || null; run(); });
   $("end").addEventListener("change", e=>{ st.end = e.target.value || null; run(); });
@@ -143,7 +154,7 @@
     const lump = st.mode === "lump";
     const yrs = ET.years(start, end);
     const anyEst = R.some(r=>r.s.estN>0);
-    const estTxt = r => r.s.estN > 0 ? `<br><span class="est">${r.s.dates[0]}～${r.s.dates[r.s.estN-1]} 為推估</span>` : "";
+    const estTxt = r => r.s.estN > 0 ? `<span class="esttag">含推估</span><br><span class="est">${r.s.dates[0]}～${r.s.dates[r.s.estN-1]} 為推估</span>` : "";
     const ddRange = r => { const m = r.res.mdd; return `${r.s.dates[m.from]} → ${r.s.dates[m.to]}`; };
     const bestWorst = r => { const full = r.ann.filter(a=>!a.partial); if (!full.length) return ["—","—"];
       const b = full.reduce((a,c)=>c.ret>a.ret?c:a), w = full.reduce((a,c)=>c.ret<a.ret?c:a);
@@ -214,7 +225,8 @@
       <div class="tw"><table><thead><tr><th>標的</th><th>起點數</th><th>賺錢機率</th><th>最差</th><th>中位數</th><th>最好</th><th>一半落在${info("把所有起點的年化報酬由低到高排，中間 50%（第 25～75 百分位）的範圍。")}</th></tr></thead><tbody>`;
     for (const {r, ro} of RR) {
       if (!ro.n) { h += `<tr><td>${r.k}</td><td colspan="6" class="sub">期間不足 ${N} 年</td></tr>`; continue; }
-      h += `<tr><td><span class="sw" style="background:var(--s${r.color})"></span><b>${r.k}</b></td><td>${ro.n}</td>
+      const ne = ro.pts.filter(p=>p.est).length;
+      h += `<tr><td><span class="sw" style="background:var(--s${r.color})"></span><b>${r.k}</b>${ne?`<span class="esttag">含推估</span><br><span class="est">${ne} 個起點落在推估期間</span>`:""}</td><td>${ro.n}</td>
         <td><b>${fmt.pct(ro.posRate,0)}</b></td>
         <td class="${cls(ro.min.ret)}">${fmt.spct(ro.min.ret)}<br><span class="sub">${ro.min.date.slice(0,7)} 起</span></td>
         <td class="${cls(ro.median)}">${fmt.spct(ro.median)}</td>

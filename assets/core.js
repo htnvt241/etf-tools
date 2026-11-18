@@ -13,13 +13,15 @@
     "VT":     { label: "VT",     name: "Vanguard 全世界股票",   ccy: "USD", kind: "etf", color: 6 },
     "VOO":    { label: "VOO",    name: "Vanguard S&P 500",      ccy: "USD", kind: "etf", color: 7,
                 ext: { base: "SP500TR", lev: 1, note: "上市前用 S&P 500 含息報酬指數減成本推估" } },
-    "QQQ":    { label: "QQQ",    name: "Invesco 那斯達克100",   ccy: "USD", kind: "etf", color: 4 },
+    "QQQ":    { label: "QQQ",    name: "Invesco 那斯達克100",   ccy: "USD", kind: "etf", color: 4,
+                ext: { base: "NDX", lev: 1, note: "上市前用那斯達克 100 指數推估（指數不含息，股息差異已一併校準）" } },
     "QLD":    { label: "QLD",    name: "ProShares 那斯達克100 正2", ccy: "USD", kind: "etf", color: 5,
                 ext: { base: "QQQ", lev: 2, note: "上市前用 QQQ 每日報酬 ×2 減成本推估" } },
     "BND":    { label: "BND",    name: "Vanguard 美國整體債券", ccy: "USD", kind: "etf", color: 8 },
     "TWII":   { label: "加權指數", name: "台灣加權指數（不含息）", ccy: "TWD", kind: "index" },
     "GSPC":   { label: "S&P 500", name: "S&P 500 指數（不含息）", ccy: "USD", kind: "index" },
     "SP500TR":{ label: "S&P 500 含息", name: "S&P 500 含息報酬指數", ccy: "USD", kind: "index" },
+    "NDX":    { label: "那斯達克100", name: "那斯達克 100 指數（不含息）", ccy: "USD", kind: "index" },
     "USDTWD": { label: "美元/台幣", name: "美元兌台幣匯率", ccy: "TWD", kind: "fx" },
   };
   const ETF_LIST = ["0050", "006208", "00631L", "VT", "VOO", "QQQ", "QLD", "BND"];

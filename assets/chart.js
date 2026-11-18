@@ -77,7 +77,7 @@
 
   function legendHTML(series) {
     return '<div class="legend">' + series.map(s =>
-      `<span><i style="background:${col(s.color)}"></i>${s.name}${s.estN ? '<em class="estk">（虛線＝估算）</em>' : ""}</span>`).join("") + "</div>";
+      `<span><i style="background:${col(s.color)}"></i>${s.name}${s.estN ? '<em class="estk">（虛線＝推估）</em>' : ""}</span>`).join("") + "</div>";
   }
 
   /* 折線圖
@@ -117,6 +117,15 @@
       for (const tk of timeTicks(t0, t1, iw)) {
         el("text", { x: X(tk.t), y: H - 6, "text-anchor": "middle" }, svg).textContent = tk.s;
       }
+      // 推估期間：淺色底帶＋左上角小字
+      let estEnd = -Infinity;
+      ser.forEach((s, k) => { if (s.estN > 0) estEnd = Math.max(estEnd, xs[k][Math.min(s.estN, xs[k].length - 1)]); });
+      if (estEnd > t0) {
+        const xe = Math.min(X(estEnd), m.l + iw);
+        el("rect", { x: m.l, y: m.t, width: Math.max(0, xe - m.l), height: ih, class: "estband" }, svg);
+        el("line", { x1: xe, x2: xe, y1: m.t, y2: m.t + ih, class: "estedge" }, svg);
+        if (xe - m.l > 40) el("text", { x: m.l + 6, y: m.t + 14, class: "estlbl" }, svg).textContent = "推估";
+      }
       // 線
       ser.forEach((s, k) => {
         const x = xs[k], v = s.values, n = v.length, est = s.estN || 0;
@@ -153,7 +162,7 @@
           const i = lo2;
           dots[k].setAttribute("cx", X(x[i])); dots[k].setAttribute("cy", Y(s.values[i])); dots[k].setAttribute("visibility", "visible");
           if (!dateS) { dateS = s.dates[i]; xpx = X(x[i]); }
-          rows.push(`<div><i style="background:${col(s.color)}"></i>${s.name}：<b>${opt.tipFmt ? opt.tipFmt(s.values[i], s, i) : (opt.yFmt ? opt.yFmt(s.values[i]) : s.values[i])}</b>${i < (s.estN || 0) ? ' <span class="tag">估算</span>' : ""}</div>`);
+          rows.push(`<div><i style="background:${col(s.color)}"></i>${s.name}：<b>${opt.tipFmt ? opt.tipFmt(s.values[i], s, i) : (opt.yFmt ? opt.yFmt(s.values[i]) : s.values[i])}</b>${i < (s.estN || 0) ? ' <span class="tag">推估</span>' : ""}</div>`);
         });
         if (!rows.length) return;
         vline.setAttribute("x1", xpx); vline.setAttribute("x2", xpx); vline.setAttribute("visibility", "visible");
@@ -185,6 +194,8 @@
       const iw = W - m.l - m.r, ih = H - m.t - m.b;
       const Y = v => m.t + ih - (v - lo) / (hi - lo || 1) * ih;
       const svg = el("svg", { viewBox: `0 0 ${W} ${H}`, height: H, role: "img", "aria-label": opt.aria || "長條圖" }, host);
+      const defs = el("defs", {}, svg), pat = el("pattern", { id: "hatch", width: 5, height: 5, patternUnits: "userSpaceOnUse", patternTransform: "rotate(45)" }, defs);
+      el("line", { x1: 0, y1: 0, x2: 0, y2: 5, class: "hatchln" }, pat);
       for (const v of yt) {
         el("line", { x1: m.l, x2: m.l + iw, y1: Y(v), y2: Y(v), class: v === 0 ? "base" : "grid" }, svg);
         el("text", { x: m.l - 6, y: Y(v) + 4, "text-anchor": "end" }, svg).textContent = opt.yFmt ? opt.yFmt(v) : v;
@@ -203,14 +214,16 @@
           const d = v >= 0
             ? `M${x},${y0}V${top + r}Q${x},${top} ${x + r},${top}H${x + bw - r}Q${x + bw},${top} ${x + bw},${top + r}V${y0}Z`
             : `M${x},${y0}V${top + h - r}Q${x},${top + h} ${x + r},${top + h}H${x + bw - r}Q${x + bw},${top + h} ${x + bw},${top + h - r}V${y0}Z`;
-          el("path", { d, fill: col(s.color), "fill-opacity": s.est && s.est[ci] ? 0.4 : 1 }, svg);
+          const isEst = s.est && s.est[ci];
+          el("path", { d, fill: col(s.color), "fill-opacity": isEst ? 0.45 : 1 }, svg);
+          if (isEst) el("path", { d, fill: "url(#hatch)", stroke: "none" }, svg);
         });
         if (ci % every === 0) el("text", { x: gx + (gw - gap) / 2, y: H - 6, "text-anchor": "middle" }, svg).textContent = c;
         const hit = el("rect", { x: m.l + ci * gw, y: m.t, width: gw, height: ih, fill: "transparent" }, svg);
         hit.addEventListener("mouseenter", () => {
           hit.setAttribute("class", "hov");
           tip.innerHTML = `<div class="hd">${c}${opt.catNote && opt.catNote[ci] ? " " + opt.catNote[ci] : ""}</div>` + ser.map((s) =>
-            s.values[ci] == null ? "" : `<div><i style="background:${col(s.color)}"></i>${s.name}：<b>${opt.yFmt ? opt.yFmt(s.values[ci]) : s.values[ci]}</b>${s.est && s.est[ci] ? ' <span class="tag">估算</span>' : ""}${s.partial && s.partial[ci] ? ' <span class="tag">不滿一年</span>' : ""}</div>`).join("");
+            s.values[ci] == null ? "" : `<div><i style="background:${col(s.color)}"></i>${s.name}：<b>${opt.yFmt ? opt.yFmt(s.values[ci]) : s.values[ci]}</b>${s.est && s.est[ci] ? ' <span class="tag">推估</span>' : ""}${s.partial && s.partial[ci] ? ' <span class="tag">不滿一年</span>' : ""}</div>`).join("");
           tip.hidden = false;
           const r = svg.getBoundingClientRect(), sx = r.width / W, tw = tip.offsetWidth;
           let left = (m.l + (ci + 1) * gw) * sx + 6; if (left + tw > r.width) left = (m.l + ci * gw) * sx - tw - 6;
@@ -218,7 +231,8 @@
         });
         hit.addEventListener("mouseleave", () => { hit.removeAttribute("class"); tip.hidden = true; });
       });
-      if (ser.length >= 2) host.insertAdjacentHTML("beforeend", legendHTML(ser));
+      if (ser.length >= 2) host.insertAdjacentHTML("beforeend", legendHTML(ser.map(s => Object.assign({}, s, { estN: 0 }))));
+      if (ser.some(s => s.est && s.est.some(Boolean))) host.insertAdjacentHTML("beforeend", '<div class="legend"><span><i class="hatchk"></i>斜線淡色＝含推估資料的年度</span></div>');
     };
     draw(); attachResize(host, draw);
   }

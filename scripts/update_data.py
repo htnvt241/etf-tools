@@ -40,6 +40,7 @@ TICKERS = [
     ("TWII",    "^TWII",     "台灣加權指數",        "index", "TWD"),
     ("GSPC",    "^GSPC",     "S&P 500 指數",        "index", "USD"),
     ("SP500TR", "^SP500TR",  "S&P 500 含息報酬指數", "index", "USD"),
+    ("NDX",     "^NDX",      "那斯達克 100 指數",   "index", "USD"),
     ("USDTWD",  "TWD=X",     "美元兌台幣",          "fx",    "TWD"),
 ]
 
