@@ -27,7 +27,7 @@
    "ccy": "TWD",
    "first": "2014-10-31",
    "last": "2026-11-16",
-   "rows": 2936,
+   "rows": 2932,
    "source": "yahoo-chart+seed"
   },
   "VT": {
@@ -115,12 +115,12 @@
    "label": "美元兌台幣",
    "kind": "fx",
    "ccy": "TWD",
-   "first": "2004-03-24",
+   "first": "1983-10-03",
    "last": "2026-11-17",
-   "rows": 5461,
-   "source": "yahoo-chart"
+   "rows": 10524,
+   "source": "yahoo+fred-seed"
   }
  },
- "updated": "2026-11-18 11:51",
- "fix_version": "95da1bf867"
+ "updated": "2026-11-18 12:05",
+ "fix_version": "c56f6fc33e"
 }
