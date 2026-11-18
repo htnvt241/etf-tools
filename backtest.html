@@ -55,6 +55,9 @@
   const need = ETF_LIST.concat(["SP500TR","USDTWD"]);
   Promise.all(need.map(k=>ET.load(k).then(s=>raw[k]=s).catch(()=>null))).then(()=>{
     if (!raw.USDTWD) $("ccy").querySelector('[data-v="TWD"]').disabled = true;
+    // 每檔標示資料從哪一年開始
+    $("picks").querySelectorAll(".pick").forEach(lb=>{ const k = lb.querySelector("input").value;
+      if (raw[k]) lb.querySelector("small").textContent += " " + raw[k].dates[0].slice(0,4); });
     run();
   });
 
@@ -118,7 +121,7 @@
     if (start >= end) { start = common0; end = common1; }
     $("start").value = start; $("end").value = end; $("start").min = common0; $("end").max = common1;
     const latest = picks.filter(k=>S[k].dates[0] === common0).map(k=>k).join("、");
-    $("rangeH").textContent = `可用期間 ${common0} ～ ${common1}` + (picks.length > 1 ? `（最早只能從 ${latest} 有資料的那天開始）` : "");
+    $("rangeH").textContent = `可用期間 ${common0} ～ ${common1}` + (picks.length > 1 && picks.some(k=>S[k].dates[0] < common0) ? `。多檔一起比較時，從資料最晚開始的 ${latest} 算起；要看單一檔的完整歷史，只勾那一檔即可` : "");
     const extKs = picks.filter(k=>st.ext && TICKERS[k].ext && calib[k]);
     $("extH").innerHTML = extKs.map(k=>`${k}：${TICKERS[k].ext.note}，校準年成本 ${fmt.pct(calib[k].drag,2)}`).join("<br>");
 

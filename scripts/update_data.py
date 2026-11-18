@@ -48,7 +48,7 @@ TICKERS = [
 # 底之後的新交易日，再接上 Yahoo 的每日漲跌幅。
 SEEDED = {"0050", "00631L"}
 # 修改補資料／修正的邏輯時把這個數字加 1，下次執行就不會把「邏輯改變造成的歷史變動」誤判成資料被竄改
-LOGIC_VERSION = "3"
+LOGIC_VERSION = "4"
 
 UA = ("Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 "
       "(KHTML, like Gecko) Chrome/124.0 Safari/537.36")
@@ -288,6 +288,14 @@ def main():
             rows, used = merge_fx_seed(rows)
             if used:
                 src[name] = "yahoo+fred-seed"
+        if rows and kind == "etf":
+            # 上市前的「掛牌價」常是一長串相同價格（例如 006208 上市前都是 30），去掉
+            k = 0
+            while k + 1 < len(rows) and rows[k][1] == rows[k + 1][1]:
+                k += 1
+            if k >= 3:
+                print(f"[{name}] 去掉上市前重複的掛牌價 {k} 筆：{rows[0][0]} ~ {rows[k - 1][0]}")
+                rows = rows[k:]
         if rows:
             raw[name] = rows
         time.sleep(1)
