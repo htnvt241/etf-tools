@@ -53,12 +53,12 @@ button.primary{background:var(--accent);border-color:var(--accent);color:var(--b
 .seg button{flex:1;white-space:nowrap;border:0;border-radius:0;background:transparent;color:var(--mute);padding:6px 8px}
 .seg button+button{border-left:1px solid var(--line)}
 .seg button.on{background:var(--accent);color:var(--bg);font-weight:500}
-.picks{display:grid;grid-template-columns:1fr 1fr;gap:4px 8px}
+.picks{display:grid;grid-template-columns:minmax(0,1fr);gap:2px}
 .pick{display:flex;align-items:center;gap:6px;font-size:13px;color:var(--ink);cursor:pointer;padding:3px 4px;border-radius:4px}
 .pick:hover{background:var(--soft)}
 .pick input{width:auto;margin:0}
 .pick i{width:10px;height:10px;border-radius:2px;display:inline-block;flex:none}
-.pick small{color:var(--mute);font-size:11px;white-space:nowrap}
+.pick small{color:var(--mute);font-size:11px;white-space:nowrap;margin-left:auto}
 .pick small .est{text-decoration:underline dotted}
 label.chk{display:flex;gap:8px;align-items:flex-start;font-size:13px;color:var(--ink);cursor:pointer}
 label.chk input{width:auto;margin-top:3px}
