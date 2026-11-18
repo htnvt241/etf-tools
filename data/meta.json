@@ -6,8 +6,8 @@
    "kind": "etf",
    "ccy": "TWD",
    "first": "2003-06-30",
-   "last": "2026-11-16",
-   "rows": 5751,
+   "last": "2026-11-17",
+   "rows": 5752,
    "source": "yahoo-chart+seed",
    "fix_version": "7c5ad25f5b"
   },
@@ -17,8 +17,8 @@
    "kind": "etf",
    "ccy": "TWD",
    "first": "2012-06-29",
-   "last": "2026-11-16",
-   "rows": 3508,
+   "last": "2026-11-17",
+   "rows": 3509,
    "source": "yahoo-chart",
    "fix_version": "7c5ad25f5b"
   },
@@ -28,8 +28,8 @@
    "kind": "etf",
    "ccy": "TWD",
    "first": "2014-10-31",
-   "last": "2026-11-16",
-   "rows": 2932,
+   "last": "2026-11-17",
+   "rows": 2933,
    "source": "yahoo-chart+seed",
    "fix_version": "7c5ad25f5b"
   },
@@ -144,6 +144,6 @@
    "fix_version": "7c5ad25f5b"
   }
  },
- "updated": "2026-11-18 13:17",
+ "updated": "2026-11-19 00:32",
  "fix_version": "7c5ad25f5b"
 }
