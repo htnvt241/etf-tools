@@ -138,6 +138,42 @@
     };
   }
 
+  // ---------- 組合 ----------
+  // parts: [{s:{dates,adj,estN}, w}]，w 加總為 1；rebalance: "none" | "year" | "quarter"
+  // 各標的交易日不同（台美假日），用所有日期的聯集，沒交易的日子沿用前一天價格。
+  function portfolio(parts, rebalance) {
+    const start = parts.map(p => p.s.dates[0]).sort().pop();
+    const end = parts.map(p => p.s.dates[p.s.dates.length - 1]).sort()[0];
+    const set = new Set();
+    parts.forEach(p => { for (const d of p.s.dates) if (d >= start && d <= end) set.add(d); });
+    const dates = [...set].sort();
+    const n = dates.length, m = parts.length;
+    const px = parts.map(() => new Float64Array(n));
+    parts.forEach((p, k) => {
+      let j = lowerBound(p.s.dates, start);
+      for (let i = 0; i < n; i++) {
+        while (j + 1 < p.s.dates.length && p.s.dates[j + 1] <= dates[i]) j++;
+        px[k][i] = p.s.adj[j];
+      }
+    });
+    // 推估期間：任何一檔還在推估的日子
+    const realStart = parts.map(p => (p.s.estN || 0) > 0 ? p.s.dates[p.s.estN] : "").sort().pop();
+    let estN = 0; while (estN < n && dates[estN] < realStart) estN++;
+    const nav = new Float64Array(n);
+    let units = parts.map((p, k) => p.w / px[k][0]);
+    const period = d => rebalance === "year" ? d.slice(0, 4) : rebalance === "quarter" ? d.slice(0, 4) + Math.floor((+d.slice(5, 7) - 1) / 3) : "";
+    let per = period(dates[0]);
+    for (let i = 0; i < n; i++) {
+      let v = 0; for (let k = 0; k < m; k++) v += units[k] * px[k][i];
+      nav[i] = v;
+      if (rebalance !== "none" && i > 0) {
+        const pp = period(dates[i]);
+        if (pp !== per) { per = pp; units = parts.map((p, k) => v * p.w / px[k][i]); }
+      }
+    }
+    return { dates, adj: nav, estN };
+  }
+
   // ---------- 計算 ----------
   function maxDrawdown(vals) {
     let peak = -Infinity, mdd = 0, pi = 0, from = 0, to = 0;
@@ -274,7 +310,7 @@
   };
 
   const ET = { TICKERS, ETF_LIST, dnum, dstr, years, addYears, lowerBound, floorIdx, parseCSV, load, loadMeta,
-    calibrate, extend, toTWD, slice, maxDrawdown, drawdownSeries, volatility, annualReturns,
+    calibrate, extend, toTWD, slice, portfolio, maxDrawdown, drawdownSeries, volatility, annualReturns,
     lumpSum, dca, xirr, rolling, periodChange, fmt };
   if (typeof module !== "undefined" && module.exports) module.exports = ET; else root.ET = ET;
 })(typeof window !== "undefined" ? window : globalThis);

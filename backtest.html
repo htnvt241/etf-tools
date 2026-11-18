@@ -2,15 +2,18 @@
 <html lang="zh-Hant"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
 <title>ETF 回測比較｜ETF 工具箱</title>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=Noto+Sans+TC:wght@400;500;700&display=swap">
-<link rel="stylesheet" href="assets/style.css?v=1118e">
+<link rel="stylesheet" href="assets/style.css?v=1119a">
 </head><body>
 <div class="wrap">
 <header id="top"></header>
 <h1>ETF 回測比較</h1>
 <div class="grid">
 <form class="rail" id="f" onsubmit="return false">
-  <h4>標的（最多 4 檔）</h4>
-  <div class="picks" id="picks"></div>
+  <h4>組合（最多 4 組，每組最多 5 檔）${INFO_PF}</h4>
+  <div id="pfs"></div>
+  <button type="button" id="addPf" class="addbtn">＋ 新增組合</button>
+  <h4>再平衡${INFO_RB}</h4>
+  <div class="seg" id="reb"><button type="button" data-v="none">不調整</button><button type="button" data-v="year" class="on">每年</button><button type="button" data-v="quarter">每季</button></div>
   <h4>投入方式</h4>
   <div class="seg" id="mode"><button type="button" data-v="lump" class="on">單筆投入</button><button type="button" data-v="dca">定期定額</button></div>
   <label><span id="amtL">投入金額</span><input id="amt" type="number" min="1" step="1000" value="100000"><span class="hint" id="amtH"></span></label>
@@ -21,7 +24,7 @@
   <div id="ccyBox">
     <h4>美股計價幣別</h4>
     <div class="seg" id="ccy"><button type="button" data-v="USD" class="on">美金</button><button type="button" data-v="TWD">台幣</button></div>
-    <p class="hint">台幣：以每天的美元兌台幣匯率換算，報酬會包含匯率漲跌。</p>
+    <p class="hint">只影響「全部是美股」的組合。台美混搭的組合一律用台幣計算。台幣：以每天的美元兌台幣匯率換算，報酬會包含匯率漲跌。</p>
   </div>
   <label class="chk"><input type="checkbox" id="ext"><span>用相關指數推估上市前的歷史<span id="extI"></span></span></label>
   <p class="hint">推估準確度：VOO、006208 很高，QQQ 高；<b>00631L、QLD 中等</b>，正2 的成本會隨當時利率變動，個別年份可能差好幾 %，適合看大方向，精確數字僅供參考。</p>
@@ -31,9 +34,9 @@
 </div>
 <footer>報酬一律以還原股價（含息再投入）計算，未計手續費與稅。定期定額為每月第一個交易日買進、可買零股。本站僅供學習研究，不構成投資建議。</footer>
 </div>
-<script src="assets/core.js?v=1118e"></script>
-<script src="assets/chart.js?v=1118e"></script>
-<script src="assets/common.js?v=1118e"></script>
+<script src="assets/core.js?v=1119a"></script>
+<script src="assets/chart.js?v=1119a"></script>
+<script src="assets/common.js?v=1119a"></script>
 <script>
 (function(){
   const {fmt, TICKERS, ETF_LIST} = ET;
@@ -41,41 +44,71 @@
   const $ = id => document.getElementById(id);
 
   // ---------- 狀態 ----------
+  const PF_COLORS = [1, 2, 3, 7];   // 組合 1～4 固定顏色
   const qs = new URLSearchParams(location.search);
-  const st = {
-    picks: qs.get("t") ? [qs.get("t")].filter(t=>ETF_LIST.includes(t)) : ["0050","VOO"],
-    mode: "lump", ccy: "USD", ext: false, log: true, rollN: 5, start: null, end: null,
-  };
-  if (qs.get("t") && st.picks.length) { const other = TICKERS[st.picks[0]].ccy === "USD" ? "0050" : "VOO"; st.picks.push(other); }
+  const st = { mode: "lump", ccy: "USD", ext: false, log: true, rollN: 5, start: null, end: null, reb: "year",
+    pfs: [ { parts: [{ k: "0050", w: 100 }] }, { parts: [{ k: "0050", w: 60 }, { k: "BND", w: 40 }] } ] };
+  const qt = qs.get("t");
+  if (qt && ETF_LIST.includes(qt)) st.pfs = [ { parts: [{ k: qt, w: 100 }] }, { parts: [{ k: TICKERS[qt].ccy === "USD" ? "VOO" : "0050", w: 100 }] } ];
+  if (qt === "VOO") st.pfs[1].parts[0].k = "0050";
 
-  $("picks").innerHTML = ETF_LIST.map(k=>`<label class="pick"><input type="checkbox" value="${k}" ${st.picks.includes(k)?"checked":""}><i style="background:var(--s${TICKERS[k].color})"></i>${k}<small>${TICKERS[k].ccy==="USD"?"美":"台"}</small></label>`).join("");
-  $("extI").innerHTML = info("有些 ETF 上市比較晚。勾選後，用追蹤相同指數的標的把歷史往前延伸：006208 用 0050、00631L 用 0050 的 2 倍、QLD 用 QQQ 的 2 倍、VOO 用 S&P 500 含息報酬指數、QQQ 用那斯達克 100 指數。每年的成本（與股息）差異，用兩者都有資料的重疊期間自動校準。推估的部分：圖上以淺灰底帶＋虛線、每年報酬以斜線淡色、表格以「含推估」標籤顯示；左邊標的旁的灰色年份（例如 1985·1999）代表推估可以回推到哪一年。VT、BND、0050 沒有延伸。");
+  $("extI").innerHTML = info("有些 ETF 上市比較晚。勾選後，用追蹤相同指數的標的把歷史往前延伸：006208 用 0050、00631L 用 0050 的 2 倍、QLD 用 QQQ 的 2 倍、VOO 用 S&P 500 含息報酬指數、QQQ 用那斯達克 100 指數。每年的成本（與股息）差異，用兩者都有資料的重疊期間自動校準。推估的部分：圖上以淺灰底帶＋虛線、每年報酬以斜線淡色、表格以「含推估」標籤顯示；標的選單中的灰色年份代表推估可以回推到哪一年。VT、BND、0050 沒有延伸。");
+  document.querySelectorAll("h4").forEach(h=>{ h.innerHTML = h.innerHTML
+    .replace("${INFO_PF}", info("每一組可以放 1～5 檔 ETF，比例加起來要 100%。想比較單一 ETF，就在一組裡只放一檔、填 100%。"))
+    .replace("${INFO_RB}", info("組合放著不管，各 ETF 的比例會隨漲跌跑掉（例如七三分幾年後變八二）。再平衡就是定期賣多買少、調回原本的比例。每年／每季是在每年（季）第一個交易日調整。")); });
+
+  // ---------- 組合輸入 ----------
+  const pfLabel = (pf, i) => pf.parts.length === 1 && +pf.parts[0].w === 100 ? pf.parts[0].k : `組合 ${i+1}`;
+  const pfDesc = pf => pf.parts.map(p=>`${p.k} ${p.w}%`).join("＋");
+  function startYear(k){
+    const s = raw[k]; if (!s) return "";
+    const y = s.dates[0].slice(0,4), spec = TICKERS[k].ext, base = spec && raw[spec.base];
+    const ey = st.ext && base ? base.dates[0].slice(0,4) : null;
+    return ey && ey < y ? `${ey}推估·${y}` : y;
+  }
+  function drawPfs(){
+    $("pfs").innerHTML = st.pfs.map((pf, i)=>{
+      const tot = pf.parts.reduce((a,p)=>a+(+p.w||0),0);
+      return `<div class="pf" data-i="${i}">
+        <div class="pfh"><i style="background:var(--s${PF_COLORS[i]})"></i><b>${pfLabel(pf,i)}</b>
+          <span class="tot ${Math.abs(tot-100)<0.01?"ok":"bad"}">合計 ${+tot.toFixed(2)}%</span>
+          ${st.pfs.length>1?`<button type="button" class="x" data-act="delpf" aria-label="刪除組合">×</button>`:""}</div>
+        ${pf.parts.map((p,j)=>`<div class="pr" data-j="${j}">
+          <select data-act="k">${ETF_LIST.map(k=>`<option value="${k}" ${k===p.k?"selected":""}>${k}（${TICKERS[k].ccy==="USD"?"美":"台"} ${startYear(k)}）</option>`).join("")}</select>
+          <input data-act="w" type="number" min="0" max="100" step="1" value="${p.w}"><span class="pct">%</span>
+          ${pf.parts.length>1?`<button type="button" class="x" data-act="delrow" aria-label="移除">×</button>`:""}</div>`).join("")}
+        ${pf.parts.length<5?`<button type="button" class="addrow" data-act="addrow">＋ 加一檔</button>`:""}
+      </div>`; }).join("");
+    $("addPf").hidden = st.pfs.length >= 4;
+  }
+  $("pfs").addEventListener("change", e=>{
+    const pfEl = e.target.closest(".pf"), row = e.target.closest(".pr"); if (!pfEl || !row) return;
+    const pf = st.pfs[+pfEl.dataset.i], p = pf.parts[+row.dataset.j];
+    if (e.target.dataset.act === "k") p.k = e.target.value;
+    if (e.target.dataset.act === "w") p.w = Math.max(0, Math.min(100, +e.target.value || 0));
+    drawPfs(); run();
+  });
+  $("pfs").addEventListener("click", e=>{
+    const act = e.target.dataset.act, pfEl = e.target.closest(".pf"); if (!act || !pfEl || e.target.tagName !== "BUTTON") return;
+    const i = +pfEl.dataset.i, pf = st.pfs[i];
+    if (act === "delpf") st.pfs.splice(i, 1);
+    if (act === "delrow") pf.parts.splice(+e.target.closest(".pr").dataset.j, 1);
+    if (act === "addrow") { const used = pf.parts.map(p=>p.k); pf.parts.push({ k: ETF_LIST.find(k=>!used.includes(k)) || "BND", w: 0 }); }
+    drawPfs(); run();
+  });
+  $("addPf").addEventListener("click", ()=>{ if (st.pfs.length < 4) { st.pfs.push({ parts: [{ k: "VT", w: 100 }] }); drawPfs(); run(); } });
 
   // ---------- 資料 ----------
   const raw = {};
   const need = ETF_LIST.concat(["SP500TR","NDX","USDTWD"]);
   Promise.all(need.map(k=>ET.load(k).then(s=>raw[k]=s).catch(()=>null))).then(()=>{
     if (!raw.USDTWD) $("ccy").querySelector('[data-v="TWD"]').disabled = true;
-    // 每檔標示資料從哪一年開始
-    $("picks").querySelectorAll(".pick").forEach(lb=>{ const k = lb.querySelector("input").value;
-      if (raw[k]) { lb.querySelector("small").dataset.y = raw[k].dates[0].slice(0,4); } });
-    updPickYears();
-    run();
+    drawPfs(); run();
   });
 
-  // 標的旁顯示資料起始年；勾選推估時，有延伸的標的另外顯示推估可到哪一年
-  function updPickYears(){
-    $("picks").querySelectorAll(".pick").forEach(lb=>{
-      const k = lb.querySelector("input").value, sm = lb.querySelector("small"), y = sm.dataset.y || "";
-      const spec = TICKERS[k].ext, base = spec && raw[spec.base];
-      const ey = st.ext && base ? base.dates[0].slice(0,4) : null;
-      sm.innerHTML = (TICKERS[k].ccy==="USD"?"美":"台") + " " + (ey && ey < y ? `<span class="est" title="${y} 上市，勾選推估後可從 ${ey} 年開始">${ey}</span>·` : "") + y;
-    });
-  }
-
-  // 依目前設定做出各檔的序列（延伸 → 換幣別）
+  // 單一標的序列（延伸 → 需要時換成台幣）
   const calib = {};
-  function series(k){
+  function series(k, twd){
     let s = raw[k]; if (!s) return null;
     s = { dates: s.dates, adj: s.adj, estN: 0 };
     const spec = TICKERS[k].ext;
@@ -83,75 +116,72 @@
       if (!calib[k]) calib[k] = ET.calibrate(raw[k], raw[spec.base], spec.lev);
       s = ET.extend(raw[k], raw[spec.base], spec.lev, calib[k].drag);
     }
-    if (TICKERS[k].ccy === "USD" && st.ccy === "TWD" && raw.USDTWD) s = ET.toTWD(s, raw.USDTWD);
+    if (TICKERS[k].ccy === "USD" && twd && raw.USDTWD) s = ET.toTWD(s, raw.USDTWD);
     return s;
   }
-  const ccyOf = k => TICKERS[k].ccy === "USD" && st.ccy === "USD" ? "USD" : "TWD";
+  // 組合幣別：全部美股且選美金 → 美金；其他 → 台幣
+  const pfCcy = pf => pf.parts.every(p=>TICKERS[p.k].ccy==="USD") && st.ccy === "USD" ? "USD" : "TWD";
 
-  // ---------- 控制項 ----------
-  $("picks").addEventListener("change", e=>{
-    const boxes = [...$("picks").querySelectorAll("input")];
-    let on = boxes.filter(b=>b.checked).map(b=>b.value);
-    if (on.length > 4) { e.target.checked = false; on = on.filter(v=>v!==e.target.value); alertNote("最多同時比較 4 檔"); }
-    // 保留勾選的先後順序
-    st.picks = st.picks.filter(k=>on.includes(k)).concat(on.filter(k=>!st.picks.includes(k)));
-    run();
-  });
+  // ---------- 其他控制項 ----------
   function segBind(id, key){
     $(id).addEventListener("click", e=>{ const b = e.target.closest("button"); if(!b||b.disabled) return;
       st[key] = b.dataset.v; $(id).querySelectorAll("button").forEach(x=>x.classList.toggle("on", x===b));
       if (key === "mode") { $("amt").value = st.mode === "lump" ? 100000 : 10000; $("amt").step = st.mode === "lump" ? 10000 : 1000; }
       run(); });
   }
-  segBind("mode","mode"); segBind("ccy","ccy");
-  $("ext").addEventListener("change", e=>{ st.ext = e.target.checked; st.start = null; updPickYears(); run(); });
+  segBind("mode","mode"); segBind("ccy","ccy"); segBind("reb","reb");
+  $("ext").addEventListener("change", e=>{ st.ext = e.target.checked; st.start = null; drawPfs(); run(); });
   $("amt").addEventListener("change", run);
   $("start").addEventListener("change", e=>{ st.start = e.target.value || null; run(); });
   $("end").addEventListener("change", e=>{ st.end = e.target.value || null; run(); });
   document.querySelector(".quick").addEventListener("click", e=>{
     const b = e.target.closest("button"); if(!b) return;
-    st.start = b.dataset.q === "max" ? null : ET.addYears(st.end || today(), -+b.dataset.q);
+    st.start = b.dataset.q === "max" ? null : ET.addYears(st.end || lastEnd, -+b.dataset.q);
     run();
   });
   let lastEnd = "";
-  const today = () => lastEnd;
-  let noteTimer;
-  function alertNote(t){ const h = $("rangeH"); h.textContent = t; clearTimeout(noteTimer); noteTimer = setTimeout(()=>run(), 1800); }
 
   // ---------- 主計算 ----------
   function run(){
-    const picks = st.picks.filter(k=>raw[k]);
-    $("ccyBox").hidden = !picks.some(k=>TICKERS[k].ccy==="USD");
     const out = $("out");
-    if (!picks.length) { out.innerHTML = '<div class="card">請在左邊勾選至少一檔 ETF。</div>'; return; }
-    const S = {}; picks.forEach(k=>S[k] = series(k));
-    const common0 = picks.map(k=>S[k].dates[0]).sort().pop();
-    const common1 = picks.map(k=>S[k].dates[S[k].dates.length-1]).sort()[0];
+    if (!Object.keys(raw).length) return;
+    $("ccyBox").hidden = !st.pfs.some(pf=>pf.parts.every(p=>TICKERS[p.k].ccy==="USD"));
+    const bad = st.pfs.map((pf,i)=>({pf,i})).filter(({pf})=>Math.abs(pf.parts.reduce((a,p)=>a+(+p.w||0),0)-100)>0.01 || pf.parts.some(p=>!raw[p.k]));
+    const good = st.pfs.map((pf,i)=>({pf,i})).filter(x=>!bad.includes(x));
+    if (!good.length) { out.innerHTML = '<div class="card">請讓至少一組的比例加起來等於 100%。</div>'; return; }
+    // 每組做出每日淨值
+    const P = good.map(({pf,i})=>{
+      const ccy = pfCcy(pf), twd = ccy === "TWD";
+      const parts = pf.parts.filter(p=>+p.w>0).map(p=>({ k: p.k, s: series(p.k, twd), w: +p.w/100 }));
+      return { i, pf, ccy, nav: ET.portfolio(parts, st.reb), name: pfLabel(pf,i), desc: pfDesc(pf), color: PF_COLORS[i], keys: parts.map(p=>p.k) };
+    });
+    const common0 = P.map(p=>p.nav.dates[0]).sort().pop();
+    const common1 = P.map(p=>p.nav.dates[p.nav.dates.length-1]).sort()[0];
     lastEnd = common1;
     let start = st.start && st.start > common0 ? st.start : common0;
     let end = st.end && st.end < common1 ? st.end : common1;
     if (start >= end) { start = common0; end = common1; }
     $("start").value = start; $("end").value = end; $("start").min = common0; $("end").max = common1;
-    const latest = picks.filter(k=>S[k].dates[0] === common0).map(k=>k).join("、");
-    $("rangeH").textContent = `可用期間 ${common0} ～ ${common1}` + (picks.length > 1 && picks.some(k=>S[k].dates[0] < common0) ? `。多檔一起比較時，從資料最晚開始的 ${latest} 算起；要看單一檔的完整歷史，只勾那一檔即可` : "");
-    const extKs = picks.filter(k=>st.ext && TICKERS[k].ext && calib[k]);
+    const limit = P.filter(p=>p.nav.dates[0] === common0).map(p=>p.name).join("、");
+    $("rangeH").textContent = `可用期間 ${common0} ～ ${common1}` + (P.length > 1 && P.some(p=>p.nav.dates[0] < common0) ? `。多組一起比較時，從資料最晚開始的 ${limit} 算起` : "") + "（每一組的起點＝組內最晚上市的那檔）";
+    const extKs = [...new Set(P.flatMap(p=>p.keys))].filter(k=>st.ext && TICKERS[k].ext && calib[k]);
     $("extH").innerHTML = extKs.map(k=>`${k}：${TICKERS[k].ext.note}，校準年成本 ${fmt.pct(calib[k].drag,2)}，準確度${TICKERS[k].ext.acc==="中等"?"<b>中等</b>":TICKERS[k].ext.acc}`).join("<br>");
 
     const amt = Math.max(1, +$("amt").value || 0);
-    const ccys = [...new Set(picks.map(ccyOf))];
-    $("amtL").textContent = st.mode === "lump" ? "投入金額" : "每月投入金額";
-    $("amtH").textContent = ccys.length > 1 ? "台股以台幣計、美股以美金計（同一個數字）。比較時請看報酬率。" : (ccys[0] === "USD" ? "以美金計" : "以台幣計");
+    const ccys = [...new Set(P.map(p=>p.ccy))];
+    $("amtL").textContent = st.mode === "lump" ? "每組投入金額" : "每組每月投入金額";
+    $("amtH").textContent = ccys.length > 1 ? "台幣計價的組合以台幣、美金計價的組合以美金計（同一個數字）。比較時請看報酬率。" : (ccys[0] === "USD" ? "以美金計" : "以台幣計");
 
-    const R = picks.map(k=>{
-      const s = ET.slice(S[k], start, end);
+    const R = P.map(p=>{
+      const s = ET.slice(p.nav, start, end);
       const res = st.mode === "lump" ? ET.lumpSum(s, amt) : ET.dca(s, amt);
-      return { k, s, res, ccy: ccyOf(k), color: TICKERS[k].color, ann: ET.annualReturns(s), dd: ET.drawdownSeries(s.adj) };
+      return { k: p.name, desc: p.desc, s, res, ccy: p.ccy, color: p.color, ann: ET.annualReturns(s), dd: ET.drawdownSeries(s.adj) };
     });
-    render(R, start, end, ccys);
+    render(R, start, end, ccys, bad);
   }
 
   // ---------- 畫面 ----------
-  function render(R, start, end, ccys){
+  function render(R, start, end, ccys, bad){
     const lump = st.mode === "lump";
     const yrs = ET.years(start, end);
     const anyEst = R.some(r=>r.s.estN>0);
@@ -162,7 +192,7 @@
       return [`${fmt.spct(b.ret)}（${b.year}）`, `${fmt.spct(w.ret)}（${w.year}）`]; };
 
     let html = `<section class="card"><h3>結果<span class="sub">${start} ～ ${end}，約 ${yrs.toFixed(1)} 年｜${lump?"單筆投入":"定期定額，每月第一個交易日買進"}</span></h3>
-      <div class="tw"><table><thead><tr><th>標的</th>
+      <div class="tw"><table><thead><tr><th>組合</th>
       ${lump ? `<th>投入</th><th>期末資產</th><th>總報酬</th><th>年化報酬${info("把總報酬換算成「平均每年」的複利報酬率。")}</th>`
              : `<th>總投入</th><th>期末資產</th><th>總報酬</th><th>年化報酬${info("定期定額每筆錢投入的時間不同，這裡用內部報酬率（IRR）換算成平均每年的報酬，可以跟單筆的年化報酬互相比較。")}</th><th>最大帳面虧損${info("期間內，資產市值比累計投入的本金少最多的時候，少了幾 %。")}</th>`}
       <th>最大回撤${info("標的價格從前高跌到最低點，最多跌了幾 %。代表最壞時候要承受的帳面跌幅。")}</th>
@@ -170,7 +200,7 @@
       <th>最好／最差年度</th></tr></thead><tbody>`;
     for (const r of R) {
       const x = r.res, [bw, ww] = bestWorst(r);
-      html += `<tr><td><span class="sw" style="background:var(--s${r.color})"></span><b>${r.k}</b> <span class="sub">${r.ccy==="USD"?"美金":"台幣"}</span>${estTxt(r)}</td>
+      html += `<tr><td><span class="sw" style="background:var(--s${r.color})"></span><b>${r.k}</b> <span class="sub">${r.ccy==="USD"?"美金":"台幣"}</span>${estTxt(r)}${r.desc.includes("＋")?`<br><span class="sub">${r.desc}</span>`:""}</td>
         <td>${fmt.money(x.invested, r.ccy)}</td><td>${fmt.money(x.final, r.ccy)}</td>
         <td class="${cls(x.totalRet)}">${fmt.spct(x.totalRet)}</td>
         <td class="${cls(lump?x.cagr:x.irr)}"><b>${fmt.spct(lump?x.cagr:x.irr,2)}</b></td>
@@ -178,12 +208,12 @@
         <td class="neg" title="${ddRange(r)}">${fmt.pct(x.mdd.mdd)}<br><span class="sub">${r.s.dates[x.mdd.to]}</span></td>
         <td>${fmt.pct(x.vol)}</td><td>${bw}<br>${ww}</td></tr>`;
     }
-    html += `</tbody></table></div>${ccys.length>1?'<p class="note">台股以台幣、美股以美金計，期末金額不能直接相比，請看報酬率。要用同一種幣別比較，可把「美股計價幣別」切成台幣。</p>':""}</section>`;
+    html += `</tbody></table></div>${ccys.length>1?'<p class="note">有的組合以台幣、有的以美金計，期末金額不能直接相比，請看報酬率。要用同一種幣別比較，可把「美股計價幣別」切成台幣。</p>':""}</section>`;
 
     html += `<section class="card"><h3>${ccys.length>1 ? "成長倍數" : "資產變化"}<span class="sub">${ccys.length>1 ? "每投入 1 元變成幾元（幣別不同，所以用倍數比較）" : (ccys[0]==="USD"?"美金":"台幣")}</span></h3>
       <div class="tools" style="margin-bottom:6px"><label class="chk" style="font-size:12.5px"><input type="checkbox" id="logc" ${st.log?"checked":""}> 對數座標</label></div>
       <div id="ch-value"></div></section>
-      <section class="card"><h3>回撤<span class="sub">每天距離前高跌了多少（標的本身）</span></h3><div id="ch-dd"></div></section>
+      <section class="card"><h3>回撤<span class="sub">每天距離前高跌了多少（組合本身）</span></h3><div id="ch-dd"></div></section>
       <section class="card"><h3>每年報酬<span class="sub">日曆年度，含息。頭尾不滿一整年的年度會標示</span></h3><div id="ch-ann"></div></section>
       <section class="card" id="rollCard"></section>`;
     $("out").innerHTML = html;
@@ -223,7 +253,7 @@
     const RR = R.map(r=>({ r, ro: ET.rolling(r.s, N) }));
     let h = `<h3>滾動報酬${info("假設你在期間內「任何一個月」開始單筆買進，持有 N 年後賣出，年化報酬會是多少。把所有起點的結果攤開來看，可以知道：持有 N 年賠錢的機率有多高、最差和最好的情況。")}<span class="sub">期間內每個月都當一次起點，單筆買進持有 ${N} 年</span></h3>
       <div class="tools" style="margin-bottom:10px">持有年數 <div class="seg" id="rollSeg">${opts.map(n=>`<button type="button" data-v="${n}" class="${n===N?"on":""}">${n} 年</button>`).join("")}</div></div>
-      <div class="tw"><table><thead><tr><th>標的</th><th>起點數</th><th>賺錢機率</th><th>最差</th><th>中位數</th><th>最好</th><th>一半落在${info("把所有起點的年化報酬由低到高排，中間 50%（第 25～75 百分位）的範圍。")}</th></tr></thead><tbody>`;
+      <div class="tw"><table><thead><tr><th>組合</th><th>起點數</th><th>賺錢機率</th><th>最差</th><th>中位數</th><th>最好</th><th>一半落在${info("把所有起點的年化報酬由低到高排，中間 50%（第 25～75 百分位）的範圍。")}</th></tr></thead><tbody>`;
     for (const {r, ro} of RR) {
       if (!ro.n) { h += `<tr><td>${r.k}</td><td colspan="6" class="sub">期間不足 ${N} 年</td></tr>`; continue; }
       const ne = ro.pts.filter(p=>p.est).length;
