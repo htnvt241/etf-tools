@@ -156,43 +156,34 @@ def merge_seed(name, rows, ref_rows=None, lev=1, skip=()):
     return out
 
 
-def fetch_fred_fx():
-    """美聯準會（FRED）的美元兌台幣日資料，1983 年起，沒有 Yahoo 的大缺口；但會延遲幾天。"""
-    url = "https://fred.stlouisfed.org/graph/fredgraph.csv?id=DEXTAUS"
-    r, err = None, None
-    for attempt in range(3):
-        try:
-            r = requests.get(url, headers={"User-Agent": UA, "Accept": "text/csv"}, timeout=150)
-            r.raise_for_status()
-            break
-        except Exception as e:  # noqa: BLE001
-            err, r = e, None
-            time.sleep(10)
-    if r is None:
-        raise RuntimeError(err)
-    rows = []
-    for line in r.text.strip().splitlines()[1:]:
-        parts = line.split(",")
-        if len(parts) < 2:
+def merge_fx_seed(yahoo):
+    """Yahoo 的匯率 2004 年才開始，而且 2004/10–2006/05、2008/07–08 有缺口。
+    data/seed/USDTWD.csv（美聯準會 FRED 的歷史資料，手動下載一次）用來補 Yahoo 開始之前和缺口裡的日子。
+    （FRED 網站擋 GitHub 的伺服器，沒辦法每天自動抓。）"""
+    path = os.path.join(DATA, "seed", "USDTWD.csv")
+    if not os.path.exists(path):
+        return yahoo, False
+    with open(path, newline="", encoding="utf-8") as f:
+        seed = []
+        for row in list(csv.reader(f))[1:]:
+            try:
+                v = float(row[1])
+            except (ValueError, IndexError):
+                continue
+            if v > 0:
+                seed.append((row[0], v, v))
+    ydates = [r[0] for r in yahoo]
+    add = []
+    for d, c, a in seed:
+        if d < ydates[0]:
+            add.append((d, c, a))
             continue
-        try:
-            v = float(parts[1])
-        except ValueError:
-            continue  # FRED 用 "." 表示假日沒資料
-        if v > 0:
-            rows.append((parts[0], v, v))
-    if len(rows) < 5000:
-        raise RuntimeError(f"FRED 資料太少：{len(rows)} 筆")
-    return rows
-
-
-def merge_fx(fred, yahoo):
-    """FRED 當歷史，FRED 最後一天之後接 Yahoo。"""
-    last = fred[-1][0]
-    ymap = {d: c for d, c, _ in yahoo}
-    if last in ymap and abs(ymap[last] / fred[-1][1] - 1) > 0.02:
-        print(f"[USDTWD] 注意：{last} FRED {fred[-1][1]} 和 Yahoo {ymap[last]} 差超過 2%")
-    return fred + [r for r in yahoo if r[0] > last]
+        k = bisect.bisect_left(ydates, d)
+        if 0 < k < len(ydates) and ydates[k] != d:
+            gap = (datetime.fromisoformat(ydates[k]) - datetime.fromisoformat(ydates[k - 1])).days
+            if gap > 5:
+                add.append((d, c, a))
+    return dedupe(yahoo + add), bool(add)
 
 
 def fetch_yfinance(symbol):
@@ -300,11 +291,9 @@ def main():
                 print(f"[{name}] yfinance 也失敗：{e2}；保留舊資料")
         if rows and kind == "fx":
             rows = clean_fx(rows)
-            try:
-                rows = merge_fx(fetch_fred_fx(), rows)
-                src[name] = "fred+yahoo"
-            except Exception as e:  # noqa: BLE001
-                print(f"[USDTWD] FRED 抓取失敗：{e}；只用 Yahoo（2004–2006 有缺口）")
+            rows, used = merge_fx_seed(rows)
+            if used:
+                src[name] = "yahoo+fred-seed"
         if rows:
             raw[name] = rows
         time.sleep(1)
