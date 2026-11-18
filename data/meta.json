@@ -15,9 +15,9 @@
    "label": "富邦台50",
    "kind": "etf",
    "ccy": "TWD",
-   "first": "2012-06-22",
+   "first": "2012-06-29",
    "last": "2026-11-16",
-   "rows": 3513,
+   "rows": 3508,
    "source": "yahoo-chart"
   },
   "00631L": {
@@ -121,6 +121,6 @@
    "source": "yahoo+fred-seed"
   }
  },
- "updated": "2026-11-18 12:32",
- "fix_version": "9017791717"
+ "updated": "2026-11-18 13:02",
+ "fix_version": "2b0ac8fa8b"
 }
