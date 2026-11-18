@@ -9,6 +9,7 @@
 
 安全機制：抓失敗、或抓到的資料筆數明顯比舊檔少，就保留舊檔不覆蓋。
 """
+import bisect
 import csv
 import hashlib
 import json
@@ -46,6 +47,8 @@ TICKERS = [
 # 00631L 早期價格異常），所以改用已校對過的歷史當底（data/seed/），
 # 底之後的新交易日，再接上 Yahoo 的每日漲跌幅。
 SEEDED = {"0050", "00631L"}
+# 修改補資料／修正的邏輯時把這個數字加 1，下次執行就不會把「邏輯改變造成的歷史變動」誤判成資料被竄改
+LOGIC_VERSION = "2"
 
 UA = ("Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 "
       "(KHTML, like Gecko) Chrome/124.0 Safari/537.36")
@@ -99,28 +102,41 @@ def parse_chart_json(js):
     return dedupe(rows)
 
 
-def merge_seed(name, rows):
+def merge_seed(name, rows, ref_rows=None, lev=1, skip=()):
     """以 data/seed/<name>.csv 為底，之後的日子用 Yahoo 的每日漲跌幅接上去。
-    底裡面若連續缺 2 天以上、而 Yahoo 有資料，也用 Yahoo 的走勢補進去（頭尾對齊底的價格）。"""
+    底裡面若連續缺 2 天以上，用參考標的（0050→加權指數、00631L→2×0050）的走勢補上，頭尾對齊底的價格。
+    參考標的價格沒變的日子（颱風假、停止交易時資料源常會重複前一天的價格）不補。"""
     path = os.path.join(DATA, "seed", f"{name}.csv")
     with open(path, newline="", encoding="utf-8") as f:
         seed = [(d, float(a)) for d, a in list(csv.reader(f))[1:]]
     ymap = {d: (c, a) for d, c, a in rows}
-    ydates = [r[0] for r in rows]
-    # 補底的缺口
     filled = []
-    for k in range(1, len(seed)):
-        p_d, p_v = seed[k - 1]
-        q_d, q_v = seed[k]
-        mids = [d for d in ydates if p_d < d < q_d]
-        if len(mids) >= 2 and p_d in ymap and q_d in ymap:
-            yp, yq = ymap[p_d][1], ymap[q_d][1]
-            adjust = (q_v / p_v) / (yq / yp)
+    if ref_rows:
+        rdates = [r[0] for r in ref_rows]
+        rmap = {r[0]: r[2] for r in ref_rows}
+        for k in range(1, len(seed)):
+            p_d, p_v = seed[k - 1]
+            q_d, q_v = seed[k]
+            if p_d not in rmap or q_d not in rmap:
+                continue
+            mids, prev_v = [], rmap[p_d]
+            for d in rdates[bisect.bisect_right(rdates, p_d):bisect.bisect_left(rdates, q_d)]:
+                if rmap[d] != prev_v and d not in skip:
+                    mids.append(d)
+                prev_v = rmap[d]
+            if len(mids) < 2:
+                continue
+            # 參考標的的每日報酬 × 倍數，連成一條路徑，再等比例調整讓終點對上底的價格
+            path_v, v, last = [], p_v, rmap[p_d]
+            for d in mids + [q_d]:
+                v *= 1 + lev * (rmap[d] / last - 1)
+                last = rmap[d]
+                path_v.append(v)
+            adjust = q_v / path_v[-1]
             for j, d in enumerate(mids, 1):
-                frac = j / (len(mids) + 1)
-                filled.append((d, p_v * (ymap[d][1] / yp) * adjust ** frac))
+                filled.append((d, path_v[j - 1] * adjust ** (j / (len(mids) + 1))))
     if filled:
-        print(f"[{name}] 底資料缺 {len(filled)} 天，已用 Yahoo 走勢補上：{filled[0][0]} ~ {filled[-1][0]}")
+        print(f"[{name}] 底資料缺 {len(filled)} 天，已用參考標的走勢補上：{', '.join(d for d, _ in filled)}")
         seed = sorted(seed + filled)
     last_d, last_v = seed[-1]
     out = [(d, a, a) for d, a in seed]
@@ -143,8 +159,17 @@ def merge_seed(name, rows):
 def fetch_fred_fx():
     """美聯準會（FRED）的美元兌台幣日資料，1983 年起，沒有 Yahoo 的大缺口；但會延遲幾天。"""
     url = "https://fred.stlouisfed.org/graph/fredgraph.csv?id=DEXTAUS"
-    r = requests.get(url, headers={"User-Agent": UA}, timeout=60)
-    r.raise_for_status()
+    r, err = None, None
+    for attempt in range(3):
+        try:
+            r = requests.get(url, headers={"User-Agent": UA, "Accept": "text/csv"}, timeout=150)
+            r.raise_for_status()
+            break
+        except Exception as e:  # noqa: BLE001
+            err, r = e, None
+            time.sleep(10)
+    if r is None:
+        raise RuntimeError(err)
     rows = []
     for line in r.text.strip().splitlines()[1:]:
         parts = line.split(",")
@@ -254,7 +279,7 @@ def main():
     known_note = {e["key"]: e.get("note", "") for e in known["fix"] + known["ignore"]}
     fix_keys = {e["key"] for e in known["fix"]}
     # 修正清單或底資料變了，歷史本來就會變，這次不做「歷史被改動」檢查
-    fix_version = hashlib.md5((json.dumps(sorted(fix_keys)) + "".join(
+    fix_version = hashlib.md5((LOGIC_VERSION + json.dumps(sorted(fix_keys)) + "".join(
         str(os.path.getsize(os.path.join(DATA, "seed", f))) for f in sorted(os.listdir(os.path.join(DATA, "seed")))
     )).encode()).hexdigest()[:10]
     same_fix = meta.get("fix_version") == fix_version
@@ -280,12 +305,17 @@ def main():
                 src[name] = "fred+yahoo"
             except Exception as e:  # noqa: BLE001
                 print(f"[USDTWD] FRED 抓取失敗：{e}；只用 Yahoo（2004–2006 有缺口）")
-        if rows and name in SEEDED:
-            rows = merge_seed(name, rows)
-            src[name] += "+seed"
         if rows:
             raw[name] = rows
         time.sleep(1)
+
+    # 1b) 台股用校對過的底（0050 先做，00631L 用接好的 0050 補缺口）
+    for name, *_ in TICKERS:
+        if name in SEEDED and name in raw:
+            ref, lev, _tol = checks.CROSS[name]
+            skip = {k.split("|")[2] for k in known_note if k.startswith(name + "|missing|")}
+            raw[name] = merge_seed(name, raw[name], raw.get(ref), lev, skip)
+            src[name] += "+seed"
 
     # 2) 套用已確認的修正（依 TICKERS 順序：0050 先於 00631L、QQQ 先於 QLD）
     fixed_log = []
@@ -296,6 +326,9 @@ def main():
         ref, lev, _tol = checks.CROSS[name]
         if ref not in raw:
             continue
+        # 只修正「現在確實還被偵測為跳格」的日子（資料源自己改好了就不再動）
+        flagged = {i["date"] for i in checks.check_jump(name, raw[name], raw)}
+        dates &= flagged
         raw[name], done = checks.apply_fixes(raw[name], raw[ref], lev, dates)
         for d in done:
             fixed_log.append({"ticker": name, "date": d, "note": known_note.get(f"{name}|jump|{d}", "")})
