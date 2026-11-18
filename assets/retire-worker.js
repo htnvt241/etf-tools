@@ -104,13 +104,13 @@ self.onmessage = function (ev) {
     rich = best(c => succ[c] >= target - eps, c => med[c]);
   }
   const countOk = Array.from(succ).filter(x => x >= target - eps).length;
-  let top = -1, topSafe = null;
-  if (robust < 0) {   // 都達不到：成功率最高的配置，以及要降到多少才達標
-    top = best(() => true, c => succ[c] * 1e6 + p10[c] / cap);
-    topSafe = safe(combos[top]);
-  }
-  const robustSafe = robust >= 0 ? safe(combos[robust]) : null;
-  const pack = c => c < 0 ? null : { w: combos[c].map(x => x / S), succ: succ[c], p10: p10[c], med: med[c], nbMin: nbMin[c] };
-  self.postMessage({ type: "done", M, countOk, plateau, robust: pack(robust), rich: pack(rich), top: pack(top),
-    topSafe, robustSafe, ms: Date.now() - t0 });
+  // 排名清單（之後在主畫面用各配置「自己的完整歷史」逐一驗證，通過的才推薦）
+  const okSet = [];
+  for (let c = 0; c < M; c++) if ((plateau ? nbMin[c] : succ[c]) >= target - eps) okSet.push(c);
+  const robustList = okSet.slice().sort((a, b) => p10[b] - p10[a]).slice(0, 25);
+  const richList = okSet.slice().sort((a, b) => med[b] - med[a]).slice(0, 10);
+  const all = Array.from({ length: M }, (_, i) => i);
+  const topList = okSet.length ? [] : all.sort((a, b) => (succ[b] - succ[a]) || (p10[b] - p10[a])).slice(0, 15);
+  const pack = c => ({ w: combos[c].map(x => x / S), succ: succ[c], p10: p10[c], med: med[c], nbMin: nbMin[c] });
+  self.postMessage({ type: "done", M, countOk, plateau, robustList: robustList.map(pack), richList: richList.map(pack), topList: topList.map(pack), ms: Date.now() - t0 });
 };

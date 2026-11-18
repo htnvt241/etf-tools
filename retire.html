@@ -133,10 +133,11 @@
   }
 
   // 組合的月報酬（台幣），以及可抽樣的 12 個月區塊
-  function source(){
-    const tot = st.parts.reduce((a,p)=>a+(+p.w||0),0);
+  function source(pp){
+    pp = pp || st.parts;
+    const tot = pp.reduce((a,p)=>a+(+p.w||0),0);
     if (Math.abs(tot-100) > 0.01) return { err: "組合比例合計要等於 100%。" };
-    const parts = st.parts.filter(p=>+p.w>0).map(p=>({ k: p.k, s: series(p.k), w: +p.w/100 }));
+    const parts = pp.filter(p=>+p.w>0).map(p=>({ k: p.k, s: series(p.k), w: +p.w/100 }));
     const nav = ET.portfolio(parts, st.reb);
     const months = [], mret = [];
     for (let i = 0; i < nav.dates.length; i++) {
@@ -243,36 +244,69 @@
     const blocks = []; for (let i = 0; i + 12 <= Mn; i++) { let ok = true; for (let j = i; j < i + 12; j++) if (!allowed[j]) { ok = false; break; } if (ok) blocks.push(i); }
     if (blocks.length < 12) { box.innerHTML = '<h3>穩健配置搜尋</h3><p class="note">這幾檔的共同資料期間太短（或避開期間太長），無法搜尋。</p>'; return; }
     const N = Math.max(5, Math.min(60, +$("years").value || 30));
-    const r = rng(777), B = new Uint16Array(SIMS * N); for (let i = 0; i < B.length; i++) B[i] = Math.floor(r() * blocks.length);
+    // 和上方模擬用同一組亂數：期間相同時，抽到的區塊也相同
+    const r = rng(20261119), B = new Uint16Array(SIMS * N); for (let i = 0; i < B.length; i++) B[i] = Math.floor(r() * blocks.length);
     const step = n <= 3 ? 2 : n === 4 ? 5 : 10, target = +$("optTarget").value;
     const ctx = { keys, n, step, target, src: `${months[1]}～${months[Mn]}${avoid?`（避開 ${avoid[0]}～${avoid[1]}）`:""}`, nYears: blocks.length ? allowed.filter(Boolean).length/12 : 0,
       cap: Math.max(1, +$("cap").value || 0), amt: Math.max(0, +$("amt").value || 0), method: $("method").value };
     box.innerHTML = `<h3>穩健配置搜尋<span class="sub">計算中…</span></h3><p class="note" id="optProg">準備中</p><div class="bar"><i id="optBar"></i></div>`;
     if (worker) worker.terminate();
-    worker = new Worker("assets/retire-worker.js?v=1119e");
+    worker = new Worker("assets/retire-worker.js?v=1119f");
     worker.onmessage = ev => { const m = ev.data;
       if (m.type === "progress") { $("optProg").textContent = `試算各種比例：${fmt.num(m.done)} / ${fmt.num(m.total)}`; $("optBar").style.width = (m.done/m.total*100).toFixed(0)+"%"; return; }
       renderSearch(box, m, ctx); };
     worker.postMessage({ A, Mn, n, monthsYQ: yq, reb: st.reb, blocks: Int32Array.from(blocks), B, SIMS, N, cap: ctx.cap, amt: ctx.amt, method: ctx.method,
       infl: (+$("infl").value || 0) / 100, hair: (+$("hair").value || 0) / 100, target, step });
   }
+  // 用某個配置「自己的完整歷史」跑和上方一樣的模擬（同樣的方法與亂數），回傳成功率
+  const vCache = new Map();
+  function verify(ctx, w){
+    const key = w.map(x=>x.toFixed(3)).join(",");
+    if (vCache.has(key)) return vCache.get(key);
+    const pp = ctx.keys.map((k,j)=>({ k, w: Math.round(w[j]*100) })).filter(p=>p.w>0);
+    const S = source(pp);
+    const N = Math.max(5, Math.min(60, +$("years").value || 30));
+    const infl = (+$("infl").value || 0) / 100, hair = (+$("hair").value || 0) / 100;
+    const { F } = drawFactors(S, N, hair);
+    const r = { succ: runAll(F, N, ctx.cap, ctx.amt, ctx.method, infl, false).success, S, F, N, infl };
+    vCache.set(key, r); return r;
+  }
   function renderSearch(box, m, ctx){
-    const T = fmt.pct(ctx.target, 0);
+    vCache.clear();
+    box.querySelector(".sub").textContent = "用各配置自己的完整歷史驗證中…";
+    setTimeout(()=>renderSearch2(box, m, ctx), 20);
+  }
+  function renderSearch2(box, m, ctx){
+    const T = fmt.pct(ctx.target, 0), tgt = ctx.target - 1e-9;
+    const pick = list => { for (const x of list) { const v = verify(ctx, x.w); if (v.succ >= tgt) return { x, v }; } return null; };
+    const bestOf = list => list.reduce((b,x)=>{ const v = verify(ctx, x.w); return !b || v.succ > b.v.succ ? { x, v } : b; }, null);
+    const safeOf = v => safeAmount(v.F, v.N, ctx.cap, ctx.method, v.infl, ctx.target);
     const bars = w => `<div class="wbars">${ctx.keys.map((k,j)=>`<div class="wb"><span>${k}</span><div><i style="width:${(w[j]*100).toFixed(0)}%;background:var(--s${TICKERS[k].color})"></i></div><b>${Math.round(w[j]*100)}%</b></div>`).join("")}</div>`;
-    const card = (title, sub, x, extra) => `<div class="tier"><h4>${title}<small>${sub}</small></h4>${bars(x.w)}
-      <div class="tp"><div><small>成功率</small><b>${sp(x.succ)}</b></div><div><small>周圍比例最低成功率</small><b>${sp(x.nbMin)}</b></div>
-      <div><small>較差 10% 期末資產（實質）</small><b>${money(x.p10)}</b></div><div><small>期末資產中位數（實質）</small><b>${money(x.med)}</b></div></div>${extra||""}
-      <button type="button" class="apply" data-w="${x.w.join(",")}">套用到上面的組合，重新模擬</button></div>`;
+    const card = (title, sub, r, extra) => `<div class="tier"><h4>${title}<small>${sub}</small></h4>${bars(r.x.w)}
+      <div class="tp"><div><small>成功率（自己的完整歷史 ${r.v.S.first}～）${info("用這個配置自己能取得的最長歷史，以和上方「模擬結果」完全相同的方法與亂數重新模擬。套用後上方顯示的成功率就是這個數字。")}</small><b>${sp(r.v.succ)}</b></div>
+      <div><small>成功率（搜尋共同期間）${info("搜尋時，所有比例都用候選 ETF 的共同期間來比較，才公平。")}</small><b>${sp(r.x.succ)}</b></div>
+      <div><small>較差 10% 期末資產（實質）</small><b>${money(r.x.p10)}</b></div><div><small>期末資產中位數（實質）</small><b>${money(r.x.med)}</b></div></div>${extra||""}
+      <button type="button" class="apply" data-w="${r.x.w.join(",")}">套用到上面的組合，重新模擬</button></div>`;
     let h = `<h3>穩健配置搜尋<span class="sub">${ctx.keys.join("、")}，每 ${ctx.step}% 一格，共 ${fmt.num(m.M)} 種比例 × 10,000 次模擬｜目標成功率 ${T}｜計算 ${(m.ms/1000).toFixed(1)} 秒</span></h3>`;
-    if (m.robust) {
-      h += `<p class="note" style="margin:0 0 10px">共有 <b>${fmt.num(m.countOk)}</b> 種比例的成功率達到 ${T}。${m.plateau ? "以下只從「高原型」挑選：連周圍比例（任兩檔之間移動 " + (ctx.step===10?"10%":"5%～10%") + "）的成功率也都達標，比較不會因為比例稍微偏掉就失敗。" : "<b>但沒有任何比例符合高原型</b>（周圍比例也都達標），以下是本身達標的配置，比例偏掉一點就可能掉到目標以下，請保守看待。"}</p>
-        <div class="tiers">${card("最穩健", "達標的配置中，倒楣時（較差 10%）剩最多錢", m.robust, `<p class="peak">這個配置要維持 ${T} 成功率，第一年最多可以領 <b>${money(m.robustSafe)}</b>（總資產的 ${fmt.pct(m.robustSafe/ctx.cap,1)}）。</p>`)}
-        ${m.rich && m.rich.w.join() !== m.robust.w.join() ? card("對照：期末資產最多", "達標的配置中，期末資產中位數最高", m.rich) : ""}</div>`;
+    const note2 = `<p class="note" style="margin:0 0 10px">做法分兩關：① 所有比例先用候選 ETF 的共同期間 ${ctx.src}（約 ${ctx.nYears.toFixed(0)} 年）公平比較${m.plateau ? "，只保留「高原型」：連周圍比例（任兩檔之間移動 " + (ctx.step===10?"10%":"5%～10%") + "）的成功率也都達標" : ""}；② 前幾名再用各自<b>完整的歷史</b>（可能比共同期間更長、包含更多崩跌）重新模擬，也達標的才推薦。</p>`;
+    if (m.robustList.length) {
+      const rob = pick(m.robustList), rich = pick(m.richList);
+      h += `<p class="note" style="margin:0 0 6px">共同期間內，共有 <b>${fmt.num(m.countOk)}</b> 種比例的成功率達到 ${T}。${m.plateau ? "" : "<b>但沒有任何比例符合高原型</b>，以下是本身達標的配置，請保守看待。"}</p>` + note2;
+      if (rob) {
+        const sa = safeOf(rob.v);
+        h += `<div class="tiers">${card("最穩健", "兩關都達標的配置中，倒楣時（較差 10%）剩最多錢", rob, `<p class="peak">這個配置要維持 ${T} 成功率（完整歷史），第一年最多可以領 <b>${money(sa)}</b>（總資產的 ${fmt.pct(sa/ctx.cap,1)}）。</p>`)}
+          ${rich && rich.x.w.join() !== rob.x.w.join() ? card("對照：期末資產最多", "兩關都達標的配置中，期末資產中位數最高", rich) : ""}</div>`;
+      } else {
+        const b = bestOf(m.robustList), sa = safeOf(b.v);
+        h += `<p class="err" style="margin:0 0 10px">共同期間內達標的前 ${m.robustList.length} 名，用各自完整的歷史驗證後，都沒有達到 ${T}（完整歷史包含更多崩跌）。以下是驗證成功率最高的配置：</p>
+          <div class="tiers">${card("驗證成功率最高", "共同期間達標，完整歷史下成功率最高", b, `<p class="peak">用這個配置，第一年提領降到 <b>${money(sa)}</b>（總資產的 ${fmt.pct(sa/ctx.cap,1)}，每月約 ${money(sa/12)}）以下，完整歷史下也能達到 ${T}。</p>`)}</div>`;
+      }
     } else {
-      h += `<p class="err" style="margin:0 0 10px">在目前的提領金額下，沒有任何比例的成功率能達到 ${T}。以下是成功率最高的配置：</p>
-        <div class="tiers">${card("成功率最高", "所有比例中成功率最高", m.top, `<p class="peak">用這個配置，第一年提領降到 <b>${money(m.topSafe)}</b>（總資產的 ${fmt.pct(m.topSafe/ctx.cap,1)}，每月約 ${money(m.topSafe/12)}）以下，成功率就能達到 ${T}。</p>`)}</div>`;
+      const b = bestOf(m.topList), sa = safeOf(b.v);
+      h += `<p class="err" style="margin:0 0 10px">在目前的提領金額下，沒有任何比例的成功率能達到 ${T}。以下是成功率最高的配置（以完整歷史驗證）：</p>
+        <div class="tiers">${card("成功率最高", "所有比例中成功率最高", b, `<p class="peak">用這個配置，第一年提領降到 <b>${money(sa)}</b>（總資產的 ${fmt.pct(sa/ctx.cap,1)}，每月約 ${money(sa/12)}）以下，成功率就能達到 ${T}。</p>`)}</div>`;
     }
-    h += `<p class="note">搜尋的抽樣來源是這幾檔的共同期間 ${ctx.src}，約 ${ctx.nYears.toFixed(0)} 年，可能和上面「你的組合」的抽樣期間不同。所有比例都用同一批抽樣，比較才公平。${T} 的意思是「從這段歷史抽出的 10,000 種未來全部撐過去」，不是保證。</p>`;
+    h += `<p class="note">${T} 的意思是「從歷史抽出的 10,000 種未來全部撐過去」，不是保證。</p>`;
     box.innerHTML = h;
     box.querySelectorAll("button.apply").forEach(b=>b.addEventListener("click", ()=>{
       const w = b.dataset.w.split(",").map(Number);
