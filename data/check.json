@@ -1,8 +1,31 @@
 {
- "checked": "2026-11-19 11:50",
- "status": "ok",
- "new": [],
- "blocked": [],
+ "checked": "2026-11-19 16:41",
+ "status": "problem",
+ "new": [
+  {
+   "ticker": "0050",
+   "type": "missing",
+   "date": "2026-11-18",
+   "detail": "TWII 這天有交易，0050 沒有資料"
+  },
+  {
+   "ticker": "006208",
+   "type": "missing",
+   "date": "2026-11-18",
+   "detail": "TWII 這天有交易，006208 沒有資料"
+  },
+  {
+   "ticker": "00631L",
+   "type": "missing",
+   "date": "2026-11-18",
+   "detail": "TWII 這天有交易，00631L 沒有資料"
+  }
+ ],
+ "blocked": [
+  "0050",
+  "006208",
+  "00631L"
+ ],
  "stale": [],
  "fixed": [
   {
