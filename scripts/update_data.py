@@ -328,12 +328,12 @@ def main():
 
     # 3) 檢查
     new_issues, ignored, stale = [], [], []
-    blocked = set()
+    blocked, lagged = set(), set()
     for name, *_ in TICKERS:
         if name not in raw:
             continue
         seed_last = seed_last_date(name) if name in SEEDED else None
-        fixed_dates = {f["date"] for f in fixed_log if f["ticker"] == name}
+        fixed_dates = {k.split("|")[2] for k in fix_keys if k.startswith(name + "|")}  # 修正清單裡的日子（不論這次有沒有實際修正）
         same = meta["tickers"].get(name, {}).get("fix_version") == fix_version  # 每檔記自己的版本（被擋下的那檔仍是舊版）
         issues = checks.run_all(name, raw[name], raw, old[name] if same else None, seed_last, fixed_dates)
         for i in issues:
@@ -343,6 +343,9 @@ def main():
                     ignored.append(dict(i, note=known_note[k]))
             elif i["type"] == "stale":
                 stale.append(i)
+            elif i["type"] == "lag":
+                stale.append(i)
+                lagged.add(name)
             else:
                 new_issues.append(i)
                 blocked.add(name)
@@ -357,6 +360,9 @@ def main():
         rows = raw[name]
         if name in blocked and old[name]:
             print(f"[{name}] 有新問題，這次不更新，保留舊資料")
+            continue
+        if name in lagged and old[name]:
+            print(f"[{name}] 最近幾天的資料暫時不完整，這次先不更新，下次再試")
             continue
         if old[name] and len(rows) < len(old[name]) * 0.97:
             print(f"[{name}] 新資料只有 {len(rows)} 筆，比舊資料 {len(old[name])} 筆少太多；保留舊資料")

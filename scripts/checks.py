@@ -9,6 +9,7 @@ type：
   jump      單日漲跌和相關指數差太多（或單日漲跌大得不合理）
   ratio     還原價÷原始價的比例在非除息日突然改變（疑似原始價放進還原價，或反過來）
   rewrite   和上次存的資料相比，過去的價格被改掉了
+  lag       最近幾個交易日的資料暫時缺漏（資料源晚補）：這次先不更新該檔、不發通知
 """
 from datetime import date
 
@@ -48,10 +49,12 @@ def check_missing(name, rows, all_rows):
     mine = {r[0] for r in rows}
     ref_dates = [r[0] for r in all_rows[ref]]
     first, last = rows[0][0], rows[-1][0]
+    recent = ref_dates[max(0, len(ref_dates) - 5)] if ref_dates else ""   # 最近 5 個交易日
     for d in ref_dates:
         if first <= d <= last and d not in mine:
-            out.append({"ticker": name, "type": "missing", "date": d,
-                        "detail": f"{ref} 這天有交易，{name} 沒有資料"})
+            # 資料源常常晚一點才補上最近幾天：標成「lag」（這次先不更新這檔、不發通知），超過 5 個交易日還缺才算問題
+            out.append({"ticker": name, "type": "lag" if d >= recent else "missing", "date": d,
+                        "detail": f"{ref} 這天有交易，{name} 沒有資料" + ("（資料源可能還沒補上）" if d >= recent else "")})
     ref_last = ref_dates[-1]
     behind = [d for d in ref_dates if d > last]
     if len(behind) >= 2:
@@ -135,11 +138,13 @@ def check_rewrite(name, rows, old_rows):
             out.append({"ticker": name, "type": "rewrite", "date": d,
                         "detail": f"和上次存的資料相比，{prev_d} 到 {d} 之間的歷史價格被改了 {f/prev_f-1:+.1%}"})
         prev_f, prev_d = f, d
-    old_dates = {r[0] for r in old_rows}
+    old_dates = sorted(r[0] for r in old_rows)
     dropped = [d for d in old_dates if d not in new and d >= rows[0][0]]
     if dropped:
-        out.append({"ticker": name, "type": "rewrite", "date": min(dropped),
-                    "detail": f"上次有、這次卻不見的日子 {len(dropped)} 天（最早 {min(dropped)}）"})
+        recent = old_dates[max(0, len(old_dates) - 5)]
+        lag = all(d >= recent for d in dropped)   # 只少了最近幾天：資料源暫時漏掉，通常下次就恢復
+        out.append({"ticker": name, "type": "lag" if lag else "rewrite", "date": min(dropped),
+                    "detail": f"上次有、這次卻不見的日子 {len(dropped)} 天（最早 {min(dropped)}）" + ("，可能是資料源暫時漏掉" if lag else "")})
     return out
 
 

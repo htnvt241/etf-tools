@@ -4,7 +4,7 @@ import os
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 TYPE = {"missing": "缺資料", "stale": "資料落後", "gap": "資料中斷", "jump": "跳格",
-        "ratio": "原始／還原價異常", "rewrite": "歷史被改動"}
+        "ratio": "原始／還原價異常", "rewrite": "歷史被改動", "lag": "暫時缺漏"}
 
 with open(os.path.join(ROOT, "data", "check.json"), encoding="utf-8") as f:
     c = json.load(f)

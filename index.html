@@ -83,7 +83,7 @@
     } else {
       h += `<p style="margin:0">✓ 沒有發現新問題。</p>`;
     }
-    if (c.stale && c.stale.length) h += `<p class="note">資料落後（通常是資料源還沒更新，下次會補上）：${c.stale.map(i=>i.ticker+"（到 "+i.date+"）").join("、")}</p>`;
+    if (c.stale && c.stale.length) h += `<p class="note">資料落後（通常是資料源還沒更新，下次會補上）：${c.stale.map(i=>i.ticker+(i.type==="lag"?"（"+i.date+" 暫缺，這次先不更新）":"（到 "+i.date+"）")).join("、")}</p>`;
     if (c.fixed && c.fixed.length) h += `<details><summary>已修正的錯誤資料 ${c.fixed.length} 天（用相關指數當天的漲跌取代）</summary>${tbl(c.fixed.map(i=>row(Object.assign({type:"jump"},i), i.note)).join(""), "原因")}</details>`;
     if (c.ignored && c.ignored.length) h += `<details><summary>已確認為真實事件或無害的異常 ${c.ignored.length} 個</summary>${tbl(c.ignored.map(i=>row(i, i.note+"<br><span class=sub>"+i.detail+"</span>")).join(""), "原因")}</details>`;
     box.innerHTML = h;
