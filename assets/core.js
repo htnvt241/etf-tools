@@ -22,6 +22,7 @@
     "GSPC":   { label: "S&P 500", name: "S&P 500 指數（不含息）", ccy: "USD", kind: "index" },
     "SP500TR":{ label: "S&P 500 含息", name: "S&P 500 含息報酬指數", ccy: "USD", kind: "index" },
     "NDX":    { label: "那斯達克100", name: "那斯達克 100 指數（不含息）", ccy: "USD", kind: "index" },
+    "TWRI":   { label: "報酬指數", name: "台灣發行量加權股價報酬指數（含息）", ccy: "TWD", kind: "index" },
     "USDTWD": { label: "美元/台幣", name: "美元兌台幣匯率", ccy: "TWD", kind: "fx" },
   };
   const ETF_LIST = ["0050", "006208", "00631L", "VT", "VOO", "QQQ", "QLD", "BND"];

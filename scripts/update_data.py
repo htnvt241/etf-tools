@@ -41,6 +41,7 @@ TICKERS = [
     ("GSPC",    "^GSPC",     "S&P 500 指數",        "index", "USD"),
     ("SP500TR", "^SP500TR",  "S&P 500 含息報酬指數", "index", "USD"),
     ("NDX",     "^NDX",      "那斯達克 100 指數",   "index", "USD"),
+    ("TWRI",    "TWSE:MFI94U", "台灣發行量加權股價報酬指數", "index", "TWD"),
     ("USDTWD",  "TWD=X",     "美元兌台幣",          "fx",    "TWD"),
 ]
 
@@ -181,6 +182,49 @@ def merge_fx_seed(yahoo):
     return seed + [r for r in yahoo if r[0] > last], True
 
 
+def fetch_twse_return_index(old_rows):
+    """臺灣證券交易所「發行量加權股價報酬指數」（含息），2003-01-02 起，每月一個請求。
+    已有舊資料時，只重抓最近兩個月；第一次執行會從 2003 年 1 月一路抓到現在（約 280 個月，只需要一次）。"""
+    today = datetime.now(timezone(timedelta(hours=8))).date()
+    if old_rows:
+        last = old_rows[-1][0]
+        y, m = int(last[:4]), int(last[5:7]) - 1
+        if m == 0:
+            y, m = y - 1, 12
+    else:
+        y, m = 2003, 1
+    got = {}
+    while (y, m) <= (today.year, today.month):
+        url = f"https://www.twse.com.tw/rwd/zh/TAIEX/MFI94U?date={y}{m:02d}01&response=json"
+        js = None
+        for attempt in range(3):
+            try:
+                r = requests.get(url, headers={"User-Agent": UA}, timeout=30)
+                r.raise_for_status()
+                js = r.json()
+                break
+            except Exception as e:  # noqa: BLE001
+                time.sleep(5 * (attempt + 1))
+        if js is None:
+            raise RuntimeError(f"證交所 {y}-{m:02d} 抓取失敗")
+        if js.get("stat") == "OK":
+            for d, v in js.get("data", []):
+                p = d.strip().split("/")
+                iso = f"{int(p[0]) + 1911}-{p[1]}-{p[2]}"
+                val = float(v.replace(",", ""))
+                if val > 0:
+                    got[iso] = val
+        m += 1
+        if m == 13:
+            y, m = y + 1, 1
+        time.sleep(2.5)   # 證交所有流量限制，放慢一點
+    if not got and not old_rows:
+        raise RuntimeError("證交所沒有回傳資料")
+    merged = {d: a for d, _c, a in old_rows}
+    merged.update(got)
+    return [(d, merged[d], merged[d]) for d in sorted(merged)]
+
+
 def fetch_yfinance(symbol):
     import yfinance as yf  # 只有 chart API 失敗時才用
     df = yf.download(symbol, period="max", auto_adjust=False, progress=False, actions=False)
@@ -275,6 +319,14 @@ def main():
         path = os.path.join(DATA, f"{name}.csv")
         old[name] = [(d, float(c), float(a)) for d, c, a in read_existing(path)]
         rows = None
+        if sym.startswith("TWSE:"):
+            try:
+                rows, src[name] = fetch_twse_return_index(old[name]), "twse"
+            except Exception as e:  # noqa: BLE001
+                print(f"[{name}] 證交所抓取失敗：{e}；保留舊資料")
+            if rows:
+                raw[name] = rows
+            continue
         try:
             rows, src[name] = fetch_chart_api(sym), "yahoo-chart"
         except Exception as e:  # noqa: BLE001
