@@ -6,8 +6,8 @@
    "kind": "etf",
    "ccy": "TWD",
    "first": "2003-06-30",
-   "last": "2026-11-19",
-   "rows": 5754,
+   "last": "2026-11-23",
+   "rows": 5756,
    "source": "yahoo-chart+seed",
    "fix_version": "7c5ad25f5b"
   },
@@ -17,8 +17,8 @@
    "kind": "etf",
    "ccy": "TWD",
    "first": "2012-06-29",
-   "last": "2026-11-19",
-   "rows": 3511,
+   "last": "2026-11-23",
+   "rows": 3513,
    "source": "yahoo-chart",
    "fix_version": "7c5ad25f5b"
   },
@@ -28,8 +28,8 @@
    "kind": "etf",
    "ccy": "TWD",
    "first": "2014-10-31",
-   "last": "2026-11-19",
-   "rows": 2935,
+   "last": "2026-11-23",
+   "rows": 2937,
    "source": "yahoo-chart+seed",
    "fix_version": "7c5ad25f5b"
   },
@@ -94,8 +94,8 @@
    "kind": "index",
    "ccy": "TWD",
    "first": "1997-07-02",
-   "last": "2026-11-20",
-   "rows": 7201,
+   "last": "2026-11-23",
+   "rows": 7202,
    "source": "yahoo-chart",
    "fix_version": "7c5ad25f5b"
   },
@@ -142,8 +142,19 @@
    "rows": 10366,
    "source": "yahoo-chart",
    "fix_version": "7c5ad25f5b"
+  },
+  "TWRI": {
+   "symbol": "TWSE:MFI94U",
+   "label": "台灣發行量加權股價報酬指數",
+   "kind": "index",
+   "ccy": "TWD",
+   "first": "2003-01-02",
+   "last": "2026-11-23",
+   "rows": 5879,
+   "source": "twse",
+   "fix_version": "7c5ad25f5b"
   }
  },
- "updated": "2026-11-21 16:14",
+ "updated": "2026-11-23 22:59",
  "fix_version": "7c5ad25f5b"
 }
