@@ -25,8 +25,8 @@
   <p class="hint">00631L 在 2014/10/31 上市前，用 0050 每日報酬 ×2 減成本推估（準確度中等），推估期間會標示。</p>
   <button type="button" class="primary" id="run">重新計算</button>
   <h4>高原型最佳化</h4>
-  <p class="hint" style="margin:0">搜尋範圍：快線 10～100（每 5 一格）、慢線 50～300（每 10 一格），快線要小於慢線，約 400 組。4 種組合各自找最佳參數。</p>
   <button type="button" id="opt">跑高原型最佳化</button>
+  <p class="hint" style="margin:0">搜尋範圍：快線 30～100（每 5 一格）、慢線 60～250（每 5 一格），而且快線要小於慢線，共 540 組。4 種「看 A 做 B」組合各自找各自的最佳參數。</p>
   <p class="hint" id="optH"></p>
 </form>
 <main id="out"><div class="card loading">讀取資料中…</div></main>
@@ -237,8 +237,8 @@
 
   // ---------- 高原型最佳化 ----------
   const SGRID = [], LGRID = [];
-  for (let s = 10; s <= 100; s += 5) SGRID.push(s);
-  for (let l = 50; l <= 300; l += 10) LGRID.push(l);
+  for (let s = 30; s <= 100; s += 5) SGRID.push(s);
+  for (let l = 60; l <= 250; l += 5) LGRID.push(l);
   $("opt").addEventListener("click", ()=>{
     $("optH").textContent = "計算中…"; $("opt").disabled = true;
     setTimeout(()=>{ try { optimize(); } finally { $("opt").disabled = false; } }, 30);
