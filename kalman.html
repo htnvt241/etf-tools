@@ -258,16 +258,16 @@
         const mean = sc.reduce((p,q)=>p+q,0) / sc.length;
         score[s+","+l] = 0.7 * mean + 0.3 * Math.min(...sc);
       }
-      // 高原型：自己與周圍（快、慢各差一格）的平均，再扣掉離散程度；周圍有效參數太少（邊角）的不列入
+      // 高原型：自己與周圍（快線 ±5 天＝前後 1 格、慢線 ±10 天＝前後 2 格）的平均，再扣掉離散程度；周圍有效參數太少（邊角）的不列入
       let best = null;
       SGRID.forEach((s, si)=>LGRID.forEach((l, li)=>{
         if (score[s+","+l] === undefined) return;
         const nb = [];
-        for (let ds = -1; ds <= 1; ds++) for (let dl = -1; dl <= 1; dl++) {
+        for (let ds = -1; ds <= 1; ds++) for (let dl = -2; dl <= 2; dl++) {
           const ss = SGRID[si+ds], ll = LGRID[li+dl];
           if (ss !== undefined && ll !== undefined && score[ss+","+ll] !== undefined) nb.push(score[ss+","+ll]);
         }
-        if (nb.length < 6) return;
+        if (nb.length < 10) return;   // 最多 15 格，邊角少於 2/3 的不列入
         const m = nb.reduce((p,q)=>p+q,0) / nb.length, sd = Math.sqrt(nb.reduce((p,q)=>p+(q-m)**2,0) / nb.length);
         const ps = m - 0.5 * sd;
         if (!best || ps > best.ps) best = { s, l, ps, self: score[s+","+l], nbMean: m };
@@ -275,7 +275,7 @@
       if (best) { best.nbRatio = best.nbMean / best.self; out[cb.id] = best; }
     }
     st.opt = out;
-    $("optH").innerHTML = `完成（${((performance.now()-t0)/1000).toFixed(1)} 秒）：每組參數在 ${nWinUsed} 個 10 年區間各跑一次，分數＝70% 區間平均＋30% 最差區間（區間分數＝年化÷最大回撤），再取周圍參數也好的高原。結果已加入左邊的比較表。`;
+    $("optH").innerHTML = `完成（${((performance.now()-t0)/1000).toFixed(1)} 秒）：每組參數在 ${nWinUsed} 個 10 年區間各跑一次，分數＝70% 區間平均＋30% 最差區間（區間分數＝年化÷最大回撤），再取周圍參數（快線 ±5 天、慢線 ±10 天）也好的高原。結果已加入左邊的比較表。`;
     run();
   }
 })();
