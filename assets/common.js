@@ -9,6 +9,7 @@
     // 下拉選單：滑鼠移過去自動展開（手機點一下展開）。以後新增工具就加在 items 裡
     { title: "其他工具", items: [
       ["rebalance.html", "正二再平衡回測", "00631L 搭配現金的曝險再平衡：回測、爆倉掃描、最佳化、我的部位"],
+      ["kalman.html", "Kalman 趨勢回測", "看報酬指數或加權指數的 Kalman 快慢線，決定 0050／00631L 進出"],
     ] },
   ];
   const here = location.pathname.split("/").pop() || "index.html";

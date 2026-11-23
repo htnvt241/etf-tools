@@ -194,3 +194,9 @@ button.apply{font-size:12.5px;justify-self:start}
 .dd .ddm a:hover{background:var(--soft)}
 .dd .ddm a.on{background:var(--soft);box-shadow:inset 3px 0 0 var(--accent)}
 .dd .ddm a small{color:var(--mute);font-size:11.5px;font-weight:400;line-height:1.4}
+
+/* Kalman 趨勢回測 */
+th.l,td.l{text-align:left}
+tr.grp td{border-top:2px solid var(--line)}
+tr.hl td{background:var(--soft)}
+.selS{width:auto;font-family:var(--font);padding:4px 8px}
