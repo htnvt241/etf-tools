@@ -203,3 +203,10 @@ tr.hl td{background:var(--soft)}
 .mk{stroke:var(--panel);stroke-width:1.5;stroke-linejoin:round}.mk.buy{fill:var(--up)}.mk.sell{fill:var(--down)}
 tr.sigsep td{border-top:2px solid var(--mute)}
 #viewSeg{flex-wrap:wrap}
+/* 我的參數 */
+.myl{display:grid;gap:6px}
+.myp{display:flex;align-items:center;gap:6px;justify-content:space-between;border:1px solid var(--line);border-radius:5px;padding:6px 8px}
+.myp .chk{margin:0;align-items:flex-start}.myp .sub{font-size:11.5px;color:var(--mute)}
+.myb{display:flex;gap:4px;flex-shrink:0}
+.minib{font-size:11.5px;padding:2px 7px}.minib.del{color:var(--up)}
+.mysave{display:flex;gap:6px;grid-column:1/-1}.mysave input{flex:1;min-width:0}

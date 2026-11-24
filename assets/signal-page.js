@@ -1,7 +1,7 @@
 /* 「看 A 做 B」訊號回測頁面共用的畫面與流程（Kalman 趨勢回測、均線包絡策略）
    每頁只要提供 cfg：預設參數、讀自訂參數、產生買賣訊號、訊號圖的線、最佳化的格子。 */
 (function () {
-  const VER = "1124c";
+  const VER = "1124e";
   function init(cfg) {
     const { fmt } = ET, info = ETUI.info, cls = ETUI.cls, $ = id => document.getElementById(id);
     const SIGS = [{ k: "TWRI", name: "報酬指數" }, { k: "TWII", name: "加權指數" }];
@@ -40,6 +40,7 @@
     function range(bs) { return [Math.max(1, ET.lowerBound(bs.dates, $("start").value)), ET.floorIdx(bs.dates, $("end").value)]; }
     function paramSets(id) {
       const sets = [{ key: "def", name: "預設 " + cfg.fmt(cfg.DEF), ps: cfg.DEF }];
+      MY.list().filter(m => m.show).forEach(m => sets.push({ key: "my:" + m.id, name: "我的：" + esc(m.name), ps: m.ps, my: m }));
       if ($("useCustom").checked) { const ps = cfg.readCustom(); if (ps) sets.push({ key: "cus", name: "自訂 " + cfg.fmt(ps), ps }); }
       if (st.opt && st.opt[id]) { const o = st.opt[id]; sets.push({ key: "opt", name: "最佳化 " + cfg.fmt(o.ps), ps: o.ps, o }); }
       return sets;
@@ -60,6 +61,10 @@
     function run() { if (!st.drag) return; render(COMBOS.map(cb => evalCombo(cb, paramSets(cb.id)))); }
 
     $("run").addEventListener("click", run);
+    // ---------- 我的參數：存在這台電腦，有設定 GitHub 同步時一併存到你的私人專案 ----------
+    const MY = myParams(cfg, run, $);
+    $("out").addEventListener("click", e => { const b = e.target.closest("[data-saveopt]"); if (!b || !st.opt) return;
+      const id = b.dataset.saveopt, o = st.opt[id], cb = COMBOS.find(c => c.id === id); MY.add(`${cb.label} 最佳化`, o.ps); });
     const clearOpt = () => { if (st.opt) { st.opt = null; $("optH").textContent = "期間或成本已改變，請重新跑最佳化。"; } };
     ["start", "end", "disc", "tax"].forEach(id => $(id).addEventListener("change", () => { clearOpt(); run(); }));
     document.querySelectorAll("#customBox input").forEach(x => x.addEventListener("change", run));
@@ -79,7 +84,7 @@
         const r = row.r, bh = row.key === "bh";
         const sep = ri === 0 && ci > 0 && res[ci - 1].cb.a.k !== x.cb.a.k;   // 報酬指數和加權指數兩群之間用橘線分隔
         h += `<tr class="${ri === 0 ? "grp" : ""}${sep ? " sigsep" : ""}${row.key === "opt" ? " hl" : ""}">${ri === 0 ? `<td rowspan="${x.rows.length}" class="l"><b>${x.cb.label}</b>${x.i0 < x.bs.estN ? '<span class="esttag">含推估</span>' : ""}</td>` : ""}
-          <td class="l">${row.name}${row.key === "opt" ? `<br><span class="sub">高原型，周圍參數平均分數 ${fmt.pct(row.o.nbRatio, 0)}</span>` : ""}</td>
+          <td class="l">${row.name}${row.key === "opt" ? `<br><span class="sub">高原型，周圍參數平均分數 ${fmt.pct(row.o.nbRatio, 0)}</span> <button type="button" class="minib" data-saveopt="${x.cb.id}">存成我的參數</button>` : ""}${row.my && row.my.name !== cfg.fmt(row.ps) ? `<br><span class="sub">${cfg.fmt(row.ps)}</span>` : ""}</td>
           <td class="${cls(r.tot)}">${fmt.spct(r.tot, 1)}</td><td class="${cls(r.cagr)}"><b>${fmt.spct(r.cagr, 2)}</b></td><td class="neg">${fmt.pct(r.mdd, 1)}</td>
           <td>${SB.calmar(r).toFixed(2)}</td><td class="${cls(r.worst10)}">${isFinite(r.worst10) ? fmt.spct(r.worst10, 1) : "—"}</td>
           <td>${bh ? "—" : r.trades}</td><td>${bh || !r.trades ? "—" : fmt.pct(r.wins / r.trades, 0)}</td><td>${fmt.pct(r.inPct, 0)}</td></tr>`;
@@ -107,7 +112,7 @@
       const row = x.rows.find(r => r.key === $("viewPs").value) || x.rows[1], bh = x.rows[0], bs = x.bs;
       const dates = bs.dates.slice(x.i0, x.i1 + 1), estN = Math.max(0, bs.estN - x.i0);
       const series = [{ name: bh.name, color: 8, dates, values: Array.from(bh.r.val), estN }];
-      x.rows.filter(r => r.key !== "bh").forEach((r, k) => series.push({ name: r.name, color: [1, 3, 2][k], dates, values: Array.from(r.r.val), estN }));
+      x.rows.filter(r => r.key !== "bh").forEach((r, k) => series.push({ name: r.name, color: [1, 3, 2, 4, 5, 6, 7, 1][k], dates, values: Array.from(r.r.val), estN }));
       ETChart.line($("ch-val"), { series, log: true, height: 300, noLabels: true, yFmt: v => v.toFixed(v < 10 ? 1 : 0) + "x", tipFmt: v => v.toFixed(2) + " 倍" });
       const a = A[x.cb.a.k], j0 = ET.lowerBound(a.dates, dates[0]), j1 = ET.floorIdx(a.dates, dates[dates.length - 1]);
       const ad = a.dates.slice(j0, j1 + 1), cut = v => Array.from(v.slice(j0, j1 + 1));
@@ -150,6 +155,83 @@
       }).catch(e => { $("optH").textContent = "最佳化失敗：" + (e.message || e); })
         .finally(() => { $("opt").disabled = false; });
     });
+  }
+  // ---------- 我的參數 ----------
+  const LS = "et_strategy_params_v1", LS_GH = "p631_github_v1", GH_PATH = "strategy-params.json", MAXSHOW = 4;
+  const lsGet = k => { try { return JSON.parse(localStorage.getItem(k)); } catch (e) { return null; } };
+  const lsSet = (k, v) => { try { localStorage.setItem(k, JSON.stringify(v)); } catch (e) { /* 無痕模式等情況存不了 */ } };
+  const b64e = t => btoa(unescape(encodeURIComponent(t))), b64d = t => decodeURIComponent(escape(atob(String(t).replace(/\s/g, ""))));
+  const esc = t => String(t).replace(/[&<>"]/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
+  function ghErr(e) { const c = e && e.code; return c === 401 ? "權杖無效或已過期" : c === 403 ? "權杖沒有這個專案的讀寫權限" : c === 404 ? "找不到專案" : "網路錯誤，請稍後再試"; }
+
+  function myParams(cfg, rerun, $) {
+    let DB = lsGet(LS) || { pages: {}, updated: 0, dirty: false };
+    DB.pages = DB.pages || {};
+    const GH = lsGet(LS_GH), cloud = { st: GH && GH.token ? "loading" : "none", msg: "", sha: null, tmr: null, at: null };
+    const list = () => DB.pages[cfg.key] || (DB.pages[cfg.key] = []);
+    const same = (a, b) => JSON.stringify(a) === JSON.stringify(b);
+
+    // 介面：放在「另外測試自訂參數」上方；儲存欄位放進自訂參數區
+    const chk = $("useCustom").closest("label");
+    chk.insertAdjacentHTML("beforebegin", `<h4>我的參數</h4><div id="myList" class="myl"></div><p class="hint" id="mySync" style="margin:0"></p>`);
+    $("customBox").insertAdjacentHTML("beforeend", `<div class="mysave"><input id="myName" placeholder="幫這組參數取個名字（可空白）"><button type="button" id="mySave">儲存</button></div>`);
+
+    function draw() {
+      const L = list(), nShow = L.filter(m => m.show).length;
+      $("myList").innerHTML = L.length ? L.map(m => `<div class="myp"><label class="chk"><input type="checkbox" data-show="${m.id}" ${m.show ? "checked" : ""} ${!m.show && nShow >= MAXSHOW ? "disabled" : ""}><span><b>${esc(m.name)}</b>${m.name !== cfg.fmt(m.ps) ? `<br><span class="sub">${cfg.fmt(m.ps)}</span>` : ""}</span></label>
+          <span class="myb"><button type="button" class="minib" data-fill="${m.id}" title="把這組參數填進自訂參數欄位">填入</button><button type="button" class="minib del" data-del="${m.id}">刪除</button></span></div>`).join("")
+        + `<p class="hint" style="margin:2px 0 0">勾選的參數會加進比較表（最多 ${MAXSHOW} 組）。</p>`
+        : `<p class="hint" style="margin:0">還沒有存任何參數。勾選下方「另外測試自訂參數」輸入後按「儲存」，或在最佳化結果旁按「存成我的參數」。</p>`;
+      const t = cloud.at ? cloud.at.toLocaleTimeString("zh-TW", { hour: "2-digit", minute: "2-digit" }) : "";
+      $("mySync").innerHTML = cloud.st === "none" ? "只存在這台電腦的瀏覽器。在「正二再平衡回測 → 我的部位」設定 GitHub 同步後，這裡會自動用同一組設定同步。"
+        : cloud.st === "loading" ? "正在從 GitHub 讀取…" : cloud.st === "saving" ? "正在同步到 GitHub…"
+        : cloud.st === "ok" ? `✓ 已和 GitHub 同步${t ? "（" + t + "）" : ""}，換電腦或手機也看得到。`
+        : `<span class="neg">GitHub 同步失敗：${cloud.msg}。</span>已先存在這台電腦，下次打開這頁會再試一次。`;
+    }
+    function changed() { DB.updated = Date.now(); DB.dirty = true; lsSet(LS, DB); draw(); push(); rerun(); }
+    function add(name, ps) {
+      const dup = list().find(m => same(m.ps, ps));
+      if (dup) { alert(`這組參數已經存過了：「${dup.name}」`); return; }
+      list().push({ id: Date.now().toString(36) + Math.random().toString(36).slice(2, 5), name: (name || "").trim() || cfg.fmt(ps), ps, show: list().filter(m => m.show).length < MAXSHOW });
+      changed();
+    }
+    $("mySave").addEventListener("click", () => { const ps = cfg.readCustom(); if (!ps) { alert("自訂參數不正確，請檢查後再儲存。"); return; } add($("myName").value, ps); $("myName").value = ""; });
+    $("myList").addEventListener("change", e => { const id = e.target.dataset.show; if (!id) return; const m = list().find(x => x.id === id); if (m) { m.show = e.target.checked; changed(); } });
+    $("myList").addEventListener("click", e => {
+      const f = e.target.closest("[data-fill]"), d = e.target.closest("[data-del]");
+      if (f) { const m = list().find(x => x.id === f.dataset.fill); if (!m) return; cfg.fillCustom(m.ps); $("myName").value = m.name;
+        if (!$("useCustom").checked) { $("useCustom").checked = true; $("customBox").hidden = false; } rerun(); }
+      if (d) { const m = list().find(x => x.id === d.dataset.del); if (!m || !confirm(`確定要刪除「${m.name}」${m.name !== cfg.fmt(m.ps) ? "（" + cfg.fmt(m.ps) + "）" : ""}嗎？`)) return;
+        DB.pages[cfg.key] = list().filter(x => x !== m); changed(); }
+    });
+
+    // GitHub：GitHub contents API 讀寫私人專案裡的 strategy-params.json
+    const ghReq = (method, body) => fetch(`https://api.github.com/repos/${encodeURIComponent(GH.owner)}/${encodeURIComponent(GH.repo)}/contents/${GH_PATH}`,
+      { method, cache: "no-store", headers: { Authorization: "Bearer " + GH.token, Accept: "application/vnd.github+json" }, body: body ? JSON.stringify(body) : undefined });
+    async function pull() { const r = await ghReq("GET"); if (r.status === 404) return { data: null, sha: null }; if (!r.ok) throw { code: r.status }; const j = await r.json(); return { data: JSON.parse(b64d(j.content)), sha: j.sha }; }
+    async function write() {
+      const out = { pages: DB.pages, updated: DB.updated }, body = { message: "更新策略參數 " + new Date().toLocaleString("zh-TW"), content: b64e(JSON.stringify(out, null, 1)) };
+      if (cloud.sha) body.sha = cloud.sha;
+      let r = await ghReq("PUT", body);
+      if (r.status === 409 || r.status === 422) { const p = await pull(); cloud.sha = p.sha; if (p.sha) body.sha = p.sha; else delete body.sha; r = await ghReq("PUT", body); }
+      if (!r.ok) throw { code: r.status }; cloud.sha = (await r.json()).content.sha;
+    }
+    function push() {
+      if (cloud.st === "none") return; clearTimeout(cloud.tmr); cloud.st = "saving"; draw();
+      cloud.tmr = setTimeout(async () => { try { await write(); DB.dirty = false; lsSet(LS, DB); cloud.st = "ok"; cloud.at = new Date(); } catch (e) { cloud.st = "err"; cloud.msg = ghErr(e); } draw(); }, 800);
+    }
+    (async () => {
+      draw(); if (cloud.st === "none") return;
+      try {
+        const p = await pull(); cloud.sha = p.sha;
+        const remote = p.data && p.data.pages ? p.data : null;
+        // 這台電腦有還沒同步上去、而且比較新的修改 → 以這台為準上傳；否則以 GitHub 上的為準
+        if (!remote || (DB.dirty && DB.updated > (remote.updated || 0))) { cloud.st = "ok"; push(); return; }
+        DB = { pages: remote.pages, updated: remote.updated || 0, dirty: false }; lsSet(LS, DB);
+        cloud.st = "ok"; cloud.at = new Date(); draw(); rerun();
+      } catch (e) { cloud.st = "err"; cloud.msg = ghErr(e); draw(); }
+    })();
+    return { list, add };
   }
   window.SPage = { init };
 })();
