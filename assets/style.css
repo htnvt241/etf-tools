@@ -201,3 +201,4 @@ tr.grp td{border-top:2px solid var(--line)}
 tr.hl td{background:var(--soft)}
 .selS{width:auto;font-family:var(--font);padding:4px 8px}
 .mk{stroke:var(--panel);stroke-width:1.5;stroke-linejoin:round}.mk.buy{fill:var(--up)}.mk.sell{fill:var(--down)}
+tr.sigsep td{border-top:2px solid var(--s2)}

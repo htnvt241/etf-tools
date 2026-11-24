@@ -1,7 +1,7 @@
 /* 「看 A 做 B」訊號回測頁面共用的畫面與流程（Kalman 趨勢回測、均線包絡策略）
    每頁只要提供 cfg：預設參數、讀自訂參數、產生買賣訊號、訊號圖的線、最佳化的格子。 */
 (function () {
-  const VER = "1124a";
+  const VER = "1124b";
   function init(cfg) {
     const { fmt } = ET, info = ETUI.info, cls = ETUI.cls, $ = id => document.getElementById(id);
     const SIGS = [{ k: "TWRI", name: "報酬指數" }, { k: "TWII", name: "加權指數" }];
@@ -64,9 +64,10 @@
         <div class="tw"><table><thead><tr><th class="l">看 A 做 B</th><th class="l">參數</th><th>總報酬率</th><th>年化報酬率</th><th>最大回撤</th><th>報酬÷回撤${info("年化報酬率 ÷ 最大回撤。每承受 1% 的回撤，換到多少年化報酬，越高越好。")}</th>
         <th>最差 10 年區間年化${info("期間內每年起算一個 10 年區間（再加上最近 10 年），這組參數在最倒楣的那個 10 年的年化報酬。期間不滿 10 年時不計算。")}</th>
         <th>交易次數${info("完整的一買一賣算一次。期末還持有的那一筆也算一次（以期末市值計勝負）。")}</th><th>勝率${info("賺錢的交易占全部交易的比例。")}</th><th>持有時間</th></tr></thead><tbody>`;
-      res.forEach(x => x.rows.forEach((row, ri) => {
+      res.forEach((x, ci) => x.rows.forEach((row, ri) => {
         const r = row.r, bh = row.key === "bh";
-        h += `<tr class="${ri === 0 ? "grp" : ""}${row.key === "opt" ? " hl" : ""}">${ri === 0 ? `<td rowspan="${x.rows.length}" class="l"><b>${x.cb.label}</b>${x.cb.b.k === "00631L" && x.i0 < x.bs.estN ? '<span class="esttag">含推估</span>' : ""}</td>` : ""}
+        const sep = ri === 0 && ci > 0 && res[ci - 1].cb.a.k !== x.cb.a.k;   // 報酬指數和加權指數兩群之間用橘線分隔
+        h += `<tr class="${ri === 0 ? "grp" : ""}${sep ? " sigsep" : ""}${row.key === "opt" ? " hl" : ""}">${ri === 0 ? `<td rowspan="${x.rows.length}" class="l"><b>${x.cb.label}</b>${x.cb.b.k === "00631L" && x.i0 < x.bs.estN ? '<span class="esttag">含推估</span>' : ""}</td>` : ""}
           <td class="l">${row.name}${row.key === "opt" ? `<br><span class="sub">高原型，周圍參數平均分數 ${fmt.pct(row.o.nbRatio, 0)}</span>` : ""}</td>
           <td class="${cls(r.tot)}">${fmt.spct(r.tot, 1)}</td><td class="${cls(r.cagr)}"><b>${fmt.spct(r.cagr, 2)}</b></td><td class="neg">${fmt.pct(r.mdd, 1)}</td>
           <td>${SB.calmar(r).toFixed(2)}</td><td class="${cls(r.worst10)}">${isFinite(r.worst10) ? fmt.spct(r.worst10, 1) : "—"}</td>
