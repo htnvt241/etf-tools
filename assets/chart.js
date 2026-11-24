@@ -138,6 +138,16 @@
         if (est > 0) el("path", { d: toPath(decimate(x, v, 0, Math.min(n, est + 1), X)), class: "ln est", stroke: col(s.color) }, svg);
         if (est < n) el("path", { d: toPath(decimate(x, v, Math.max(0, est), n, X)), class: "ln", stroke: col(s.color) }, svg);
       });
+      // 買賣點標記：▲ 買進（畫在價格下方）、▼ 賣出（畫在價格上方）
+      if (opt.marks && opt.marks.length) {
+        const g = el("g", {}, svg);
+        for (const mk of opt.marks) {
+          const t = dnum(mk.date); if (t < t0 || t > t1) continue;
+          const x = X(t), buy = mk.type === "buy", s = 5, yy = Y(mk.value) + (buy ? 9 : -9);
+          const d = buy ? `M${x.toFixed(1)},${(yy - s).toFixed(1)}l${-s},${s * 1.8}h${2 * s}Z` : `M${x.toFixed(1)},${(yy + s).toFixed(1)}l${-s},${-s * 1.8}h${2 * s}Z`;
+          el("path", { d, class: buy ? "mk buy" : "mk sell" }, g);
+        }
+      }
       // 線尾直接標名稱（2–4 條線時）
       if (labels) {
         const ends = ser.map((s, k) => ({ y: Y(s.values[s.values.length - 1]), name: s.name, k }))
@@ -176,6 +186,7 @@
       hit.addEventListener("mousemove", move); hit.addEventListener("touchmove", move, { passive: true });
       hit.addEventListener("mouseleave", leave); hit.addEventListener("touchend", leave);
       if (ser.length >= 2 || ser.some(s => s.estN)) host.insertAdjacentHTML("beforeend", legendHTML(ser));
+      if (opt.marks && opt.marks.length) { const lg = host.querySelector(".legend"); if (lg) lg.insertAdjacentHTML("beforeend", '<span><b class="pos">▲</b> 買進</span><span><b class="neg">▼</b> 賣出</span>'); }
     };
     draw(); attachResize(host, draw);
   }
