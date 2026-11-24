@@ -1,0 +1,123 @@
+<!DOCTYPE html>
+<html lang="zh-Hant"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>月KD策略｜ETF 工具箱</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=Noto+Sans+TC:wght@400;500;700&display=swap">
+<link rel="stylesheet" href="assets/style.css?v=1124c">
+</head><body>
+<div class="wrap">
+<header id="top"></header>
+<h1>月KD策略：看 A 做 B</h1>
+<p class="sub" style="margin:-8px 0 0">只看指數（A）的<b>月線 KD</b>：月 K 向上穿越月 D（正交）時買進，月 K 跌破月 D（負交）時全部賣出、持有現金，不看週線和日線。B 為 00631L 時另有策略 2：正交當下 K、D 都低於 80 才買 00631L，K 或 D 已達 80 以上就改買 0050，負交時一樣全部賣出。比較用「報酬指數」和「加權指數」當訊號，哪一組效果比較好。</p>
+<div class="grid">
+<form class="rail" id="f" onsubmit="return false">
+  <h4>KD 參數<span id="parI"></span></h4>
+  <div class="row2"><label>KD 週期（月）<input type="number" value="9" disabled></label><label>高檔門檻<input type="number" value="80" disabled></label></div>
+  <p class="hint">預設 9 個月 KD、高檔門檻 80（只影響策略 2），一定會列在結果裡，當作比較基準。</p>
+  <label class="chk"><input type="checkbox" id="useCustom"><span>另外測試自訂參數</span></label>
+  <div class="row2" id="customBox" hidden><label>KD 週期（月）<input id="cN" type="number" min="2" max="36" step="1" value="6"></label><label>高檔門檻<input id="cT" type="number" min="1" max="99" step="1" value="70"></label></div>
+  <h4>期間</h4>
+  <div class="row2"><label>起<input id="start" type="date"></label><label>迄<input id="end" type="date"></label></div>
+  <div class="quick"><button type="button" data-q="2004-01-02">2004～全期</button><button type="button" data-q="2007-10-01">2007 金融海嘯前</button><button type="button" data-q="10y">近 10 年</button></div>
+  <p class="hint">2003 年的資料留給 KD「暖機」（起始 K、D＝50），所以預設從 2004 年開始。</p>
+  <h4>交易規則</h4>
+  <p class="hint" style="margin:0">月 KD 要等每個月最後一個交易日收盤才確定，所以在<b>下個月第一個交易日收盤</b>成交，每個月最多動一次。只在正交、負交「發生的那個月」動作；回測開始時持有現金，<b>等第一次正交</b>才買進。策略 2 買進後一路持有到負交，中間不換股。</p>
+  <p class="hint" id="hlNote"></p>
+  <div class="row2"><label>手續費折扣<input id="disc" type="number" value="0.6" step="0.1" min="0" max="1"></label><label>賣出證交稅 %<input id="tax" type="number" value="0.1" step="0.01" min="0"></label></div>
+  <p class="hint">00631L 在 2014/10/31 上市前，用 0050 每日報酬 ×2 減成本推估（準確度中等），推估期間會標示。</p>
+  <button type="button" class="primary" id="run">重新計算</button>
+</form>
+<main id="out"><div class="card loading">讀取資料中…</div></main>
+</div>
+<footer>報酬以還原股價（含息）計算；手續費＝成交金額 × 0.1425% × 折扣，賣出另計證交稅。月 KD：RSV＝（月收盤 − 近 N 個月最低）÷（近 N 個月最高 − 近 N 個月最低）× 100，K＝前月 K × 2/3＋RSV × 1/3，D＝前月 D × 2/3＋K × 1/3。本站僅供學習研究，不構成投資建議。</footer>
+</div>
+<script src="assets/core.js?v=1124c"></script>
+<script src="assets/chart.js?v=1124c"></script>
+<script src="assets/common.js?v=1124c"></script>
+<script src="assets/signal-bt.js?v=1124c"></script>
+<script src="assets/signal-page.js?v=1124c"></script>
+<script>
+document.getElementById("parI").innerHTML = ETUI.info("把每天的價格合成月 K 棒（當月最高、最低、月底收盤），再算 KD。週期＝看最近幾個月的高低點。正交＝K 由下往上穿越 D，負交＝K 由上往下跌破 D。高檔門檻只用在策略 2：正交當下 K 或 D 達到門檻以上，就買 0050 而不是 00631L。");
+(function(){
+  const $ = id => document.getElementById(id);
+  const HL = {};   // 加權指數每日最高、最低價
+  fetch("data/TWII_hl.csv?v=" + Date.now().toString(36).slice(0, -4)).then(r => r.ok ? r.text() : "").catch(() => "").then(txt => {
+    txt.trim().split(/\r?\n/).slice(1).forEach(l => { const [d, hi, lo] = l.split(","); if (d && +hi > 0) HL[d] = [+hi, +lo]; });
+    start();
+  });
+  // 月 K 棒與月 KD（快取）。最後一個月如果還沒結束（後面沒有下個月的資料），complete＝false，不產生訊號
+  const KC = {};
+  function kd(a, ak, n) {
+    const key = ak + n; if (KC[key]) return KC[key];
+    const useHL = ak === "TWII", bars = [];
+    let cur = null;
+    for (let j = 0; j < a.dates.length; j++) {
+      const mo = a.dates[j].slice(0, 7), c = a.px[j], x = useHL && HL[a.dates[j]];
+      const hi = x ? Math.max(x[0], c) : c, lo = x ? Math.min(x[1], c) : c;
+      if (!cur || cur.mo !== mo) { if (cur) cur.complete = true; cur = { mo, hi, lo, cl: c, end: j, complete: false }; bars.push(cur); }
+      else { cur.hi = Math.max(cur.hi, hi); cur.lo = Math.min(cur.lo, lo); cur.cl = c; cur.end = j; }
+    }
+    const K = new Float64Array(bars.length), Dv = new Float64Array(bars.length);
+    let pk = 50, pd = 50;
+    for (let m = 0; m < bars.length; m++) {
+      let hh = -Infinity, ll = Infinity;
+      for (let q = Math.max(0, m - n + 1); q <= m; q++) { hh = Math.max(hh, bars[q].hi); ll = Math.min(ll, bars[q].lo); }
+      const rsv = hh > ll ? (bars[m].cl - ll) / (hh - ll) * 100 : 50;
+      pk = pk * 2 / 3 + rsv / 3; pd = pd * 2 / 3 + pk / 3; K[m] = pk; Dv[m] = pd;
+    }
+    return KC[key] = { bars, K, D: Dv };
+  }
+  function start() {
+    const nHL = Object.keys(HL).length;
+    $("hlNote").innerHTML = nHL > 1000
+      ? `加權指數用證交所公布的每日最高、最低價合成月 K 棒；報酬指數只有收盤價，用當月每日收盤的最高、最低代替。`
+      : `加權指數的每日最高、最低價還在準備中（下次自動更新時會從證交所補齊），目前兩種指數都暫用當月每日收盤的最高、最低代替。`;
+    let A0 = null;
+    SPage.init({
+      targets: [
+        { k: "0050", name: "0050", assets: ["0050"] },
+        { k: "00631L", name: "00631L", label: "00631L（策略 1）", assets: ["00631L"] },
+        { k: "MIX", name: "00631L／0050", label: "00631L（策略 2：高檔改買 0050）", assets: ["00631L", "0050"] }
+      ],
+      DEF: { n: 9, t: 80 },
+      fmt: ps => `KD ${ps.n}，門檻 ${ps.t}`,
+      readCustom: () => { const n = Math.round(+$("cN").value), t = +$("cT").value; return n >= 2 && t > 0 && t < 100 ? { n, t } : null; },
+      ready: A => { A0 = A; },
+      events: (a, ak, ps, jm, b) => {
+        const k = kd(a, ak, ps.n), up = new Int8Array(a.px.length), dn = new Int8Array(a.px.length), mix = b.assets.length > 1;
+        for (let m = 0; m < k.bars.length; m++) {
+          if (!k.bars[m].complete) continue;
+          const j = k.bars[m].end, K = k.K[m], D = k.D[m], pK = m ? k.K[m - 1] : 50, pD = m ? k.D[m - 1] : 50;
+          if (K > D && pK <= pD) up[j] = mix && (K >= ps.t || D >= ps.t) ? 2 : 1;   // 正交；策略 2 高檔改買第 2 檔（0050）
+          if (K < D) dn[j] = 1;                                                   // 負交（持有中遇到 K<D 就賣）
+        }
+        return { on: SB.alignEvent(up, jm), off: SB.alignEvent(dn, jm) };
+      },
+      sigTitle: "指數（訊號在每月最後一個交易日收盤確定）",
+      sigLines: () => [],
+      subChart: {
+        title: ps => `月 KD（${ps.n} 個月；虛線＝高檔門檻 ${ps.t}）`,
+        draw: (host, a, ak, ps, d0, d1) => {
+          const k = kd(a, ak, ps.n), idx = [];
+          k.bars.forEach((b, m) => { const d = a.dates[b.end]; if (d >= d0.slice(0, 7) && d <= d1 + "~") idx.push(m); });
+          const dates = idx.map(m => a.dates[k.bars[m].end]);
+          ETChart.line(host, { height: 220, noLabels: true, yFmt: v => v.toFixed(0), tipFmt: v => v.toFixed(1), series: [
+            { name: "K", color: 1, dates, values: idx.map(m => k.K[m]) },
+            { name: "D", color: 4, dates, values: idx.map(m => k.D[m]) },
+            { name: `門檻 ${ps.t}`, color: 8, dates, values: idx.map(() => ps.t), estN: 0 } ] });
+          host.querySelectorAll("path.ln")[2]?.setAttribute("stroke-dasharray", "4 4");
+        }
+      },
+      extraInfo: () => {
+        if (!A0) return "";
+        const row = (ak, name) => { const k = kd(A0[ak], ak, 9), n = k.bars.length;
+          let m = n - 1; while (m >= 0 && !k.bars[m].complete) m--;
+          const st = (K, D) => K > D ? '<b class="pos">K＞D</b>' : '<b class="neg">K＜D</b>';
+          const cur = k.bars[n - 1].complete ? "" : `；本月（${k.bars[n - 1].mo}，尚未結束）目前 K ${k.K[n - 1].toFixed(1)}、D ${k.D[n - 1].toFixed(1)} ${st(k.K[n - 1], k.D[n - 1])}`;
+          return `<div>${name}：最近完整月份 ${k.bars[m].mo} K ${k.K[m].toFixed(1)}、D ${k.D[m].toFixed(1)} ${st(k.K[m], k.D[m])}${cur}</div>`; };
+        return `<section class="card"><h3>目前月 KD<span class="sub">預設 9 個月；本月數字會每天變動，月底收盤才確定</span></h3>${row("TWRI", "報酬指數")}${row("TWII", "加權指數")}</section>`;
+      }
+    });
+  }
+})();
+</script>
+</body></html>

@@ -17,32 +17,33 @@
   }
   // 狀態型訊號（例如多頭＝1）：取最近一天的狀態
   function alignState(arr, jm) { const o = new Int8Array(jm.length); for (let i = 1; i < jm.length; i++) o[i] = jm[i] >= 0 ? arr[jm[i]] : 0; return o; }
-  // 事件型訊號（例如「今天向上穿越」）：上一個 B 交易日之後到這次之間，A 只要有一天發生就算
+  // 事件型訊號（例如「今天向上穿越」）：上一個 B 交易日之後到這次之間，A 只要有一天發生就算（保留事件的代碼，例如要買第幾檔）
   function alignEvent(arr, jm) {
     const o = new Int8Array(jm.length);
-    for (let i = 1; i < jm.length; i++) { const a = Math.max(0, i > 1 ? jm[i - 1] + 1 : jm[i]); for (let j = a; j <= jm[i]; j++) if (arr[j]) { o[i] = 1; break; } }
+    for (let i = 1; i < jm.length; i++) { const a = Math.max(0, i > 1 ? jm[i - 1] + 1 : jm[i]); for (let j = a; j <= jm[i]; j++) if (arr[j]) { o[i] = arr[j]; break; } }
     return o;
   }
 
   function fees(cost) { return { buy: FEE * cost.disc, sell: FEE * cost.disc + cost.tax }; }
 
   // 完整回測（含每日資產、交易紀錄）
+  // p：一檔的價格陣列，或多檔價格陣列的清單（同一組日期）；on[i] 的值＝要買第幾檔（1＝第一檔）
   function backtest(dates, p, on, off, i0, i1, cost, keep) {
-    const f = fees(cost);
-    let cash = 1, sh = 0, pos = 0, peak = 1, mdd = 0, inDays = 0, entryVal = 0, wins = 0, trades = 0;
+    const f = fees(cost), P = Array.isArray(p) ? p : [p];
+    let cash = 1, sh = 0, pos = 0, h = 0, peak = 1, mdd = 0, inDays = 0, entryVal = 0, wins = 0, trades = 0;
     const val = keep ? new Float64Array(i1 - i0 + 1) : null, log = keep ? [] : null;
     for (let i = i0; i <= i1; i++) {
-      if (!pos && on[i]) { sh = cash / (p[i] * (1 + f.buy)); entryVal = cash; cash = 0; pos = 1; if (keep) log.push({ i, act: "買進", px: p[i] }); }
-      else if (pos && off[i]) { cash = sh * p[i] * (1 - f.sell); trades++; if (cash > entryVal) wins++; if (keep) log.push({ i, act: "賣出", px: p[i], ret: cash / entryVal - 1 }); sh = 0; pos = 0; }
-      const v = cash + sh * p[i];
+      if (!pos && on[i]) { h = on[i] - 1; const q = P[h][i]; sh = cash / (q * (1 + f.buy)); entryVal = cash; cash = 0; pos = 1; if (keep) log.push({ i, act: "買進", px: q, asset: h }); }
+      else if (pos && off[i]) { const q = P[h][i]; cash = sh * q * (1 - f.sell); trades++; if (cash > entryVal) wins++; if (keep) log.push({ i, act: "賣出", px: q, asset: h, ret: cash / entryVal - 1 }); sh = 0; pos = 0; }
+      const v = cash + sh * P[h][i];
       if (pos) inDays++;
       if (v > peak) peak = v; else { const d = v / peak - 1; if (d < mdd) mdd = d; }
       if (keep) val[i - i0] = v;
     }
-    const fin = cash + sh * p[i1];
+    const fin = cash + sh * P[h][i1];
     if (pos) { trades++; if (fin > entryVal) wins++; }   // 期末仍持有的那一筆，以期末市值計勝負
     const yrs = years(dates[i0], dates[i1]);
-    return { fin, tot: fin - 1, cagr: Math.pow(fin, 1 / yrs) - 1, mdd, trades, wins, inPct: inDays / (i1 - i0 + 1), val, log, i0, i1, yrs, openAtEnd: pos === 1 };
+    return { fin, tot: fin - 1, cagr: Math.pow(fin, 1 / yrs) - 1, mdd, trades, wins, inPct: inDays / (i1 - i0 + 1), val, log, i0, i1, yrs, openAtEnd: pos === 1, heldAtEnd: h };
   }
   // 精簡版：只算「年化 ÷ 最大回撤」，最佳化時大量呼叫
   function calmarFast(p, on, off, s, e, f, yrs) {

@@ -225,6 +225,70 @@ def fetch_twse_return_index(old_rows):
     return [(d, merged[d], merged[d]) for d in sorted(merged)]
 
 
+def update_twii_hl(twii_rows):
+    """加權指數每日最高價、最低價（證交所 MI_5MINS_HIST，每月一個請求），存成 data/TWII_hl.csv（date,high,low）。
+    給「月KD策略」算 KD 用。已有舊資料時只重抓最近兩個月；第一次執行從 2003 年 1 月抓起（約 280 個月，只需要一次）。
+    檢查：最高 ≥ 最低 > 0，而且收盤價（和 data/TWII.csv 對照，誤差 0.5% 內）要落在最高、最低之間，不合格的那天不寫入（網頁會改用收盤價）。
+    抓取失敗只印訊息、保留舊檔，不影響其他資料更新。"""
+    path = os.path.join(DATA, "TWII_hl.csv")
+    old = {}
+    if os.path.exists(path):
+        with open(path, encoding="utf-8") as f:
+            for row in list(csv.reader(f))[1:]:
+                if len(row) == 3:
+                    old[row[0]] = (float(row[1]), float(row[2]))
+    today = datetime.now(timezone(timedelta(hours=8))).date()
+    if old:
+        last = max(old)
+        y, m = int(last[:4]), int(last[5:7]) - 1
+        if m == 0:
+            y, m = y - 1, 12
+    else:
+        y, m = 2003, 1
+    close = {d: c for d, c, _a in twii_rows}
+    got, bad = {}, 0
+    try:
+        while (y, m) <= (today.year, today.month):
+            url = f"https://www.twse.com.tw/rwd/zh/TAIEX/MI_5MINS_HIST?date={y}{m:02d}01&response=json"
+            js = None
+            for attempt in range(3):
+                try:
+                    r = requests.get(url, headers={"User-Agent": UA}, timeout=30)
+                    r.raise_for_status()
+                    js = r.json()
+                    break
+                except Exception:  # noqa: BLE001
+                    time.sleep(5 * (attempt + 1))
+            if js is None:
+                raise RuntimeError(f"證交所 {y}-{m:02d} 抓取失敗")
+            if js.get("stat") == "OK":
+                for row in js.get("data", []):
+                    p = row[0].strip().split("/")
+                    iso = f"{int(p[0]) + 1911}-{p[1]}-{p[2]}"
+                    hi, lo, cl = (float(v.replace(",", "")) for v in row[2:5])
+                    ref = close.get(iso, cl)
+                    ok = hi >= lo > 0 and abs(cl / ref - 1) < 0.005 and lo * 0.999 <= cl <= hi * 1.001
+                    if ok:
+                        got[iso] = (hi, lo)
+                    else:
+                        bad += 1
+            m += 1
+            if m == 13:
+                y, m = y + 1, 1
+            time.sleep(2.5)
+    except Exception as e:  # noqa: BLE001
+        print(f"[TWII 高低價] 抓取失敗：{e}；保留舊資料（已抓到的 {len(got)} 天仍會寫入）")
+    if not got:
+        return
+    old.update(got)
+    with open(path, "w", encoding="utf-8", newline="") as f:
+        w = csv.writer(f)
+        w.writerow(["date", "high", "low"])
+        for d in sorted(old):
+            w.writerow([d, f"{old[d][0]:.2f}", f"{old[d][1]:.2f}"])
+    print(f"[TWII 高低價] OK {min(old)} ~ {max(old)}，{len(old)} 筆；本次不合格略過 {bad} 天")
+
+
 def fetch_yfinance(symbol):
     import yfinance as yf  # 只有 chart API 失敗時才用
     df = yf.download(symbol, period="max", auto_adjust=False, progress=False, actions=False)
@@ -430,6 +494,11 @@ def main():
         }
         ok_count += 1
         print(f"[{name}] OK {rows[0][0]} ~ {rows[-1][0]}，{len(rows)} 筆（{src.get(name, '')}）")
+
+    # 加權指數高低價（月KD策略用），用剛更新好的 TWII 收盤價對照
+    tw_path = os.path.join(DATA, "TWII.csv")
+    if os.path.exists(tw_path):
+        update_twii_hl([(d, float(c), float(a)) for d, c, a in read_existing(tw_path)])
 
     now = datetime.now(timezone(timedelta(hours=8))).strftime("%Y-%m-%d %H:%M")
     meta["updated"] = now
