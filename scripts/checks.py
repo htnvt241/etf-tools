@@ -22,6 +22,8 @@ CROSS = {
     "VT":      ("GSPC", 1, 0.045),
     "QQQ":     ("NDX",  1, 0.03),
     "QLD":     ("QQQ",  2, 0.04),
+    "SSO":     ("VOO",  2, 0.04),
+    "IXIC":    ("NDX",  1, 0.03),
     "SP500TR": ("GSPC", 1, 0.015),
     "TWRI":    ("TWII", 1, 0.015),
 }
@@ -31,11 +33,12 @@ ABS_LIMIT = {"BND": 0.04, "TWII": 0.105, "GSPC": 0.13, "NDX": 0.2, "USDTWD": 0.0
 CALENDAR = {
     "0050": "TWII", "006208": "TWII", "00631L": "TWII",
     "VT": "GSPC", "VOO": "GSPC", "QQQ": "GSPC", "QLD": "GSPC", "BND": "GSPC", "SP500TR": "GSPC", "NDX": "GSPC", "TWRI": "TWII",
+    "SSO": "GSPC", "IXIC": "GSPC",
 }
 # 沒有日曆參考的標的，兩筆之間最多可以隔幾天（台灣春節可能連休 9 天）
 MAX_GAP_DAYS = {"TWII": 12, "GSPC": 6, "USDTWD": 7}
 # 有配息、應該檢查「還原÷原始」比例的標的（指數與匯率沒有這個比例）
-HAS_RATIO = {"0050", "006208", "00631L", "VT", "VOO", "QQQ", "QLD", "BND"}
+HAS_RATIO = {"0050", "006208", "00631L", "VT", "VOO", "QQQ", "QLD", "SSO", "BND"}
 
 
 def _d(s):

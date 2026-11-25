@@ -36,11 +36,13 @@ TICKERS = [
     ("VOO",     "VOO",       "Vanguard S&P 500",    "etf",   "USD"),
     ("QQQ",     "QQQ",       "Invesco 那斯達克100", "etf",   "USD"),
     ("QLD",     "QLD",       "ProShares 那斯達克100 正2", "etf", "USD"),
+    ("SSO",     "SSO",       "ProShares S&P 500 正2", "etf", "USD"),
     ("BND",     "BND",       "Vanguard 美國整體債券", "etf", "USD"),
     ("TWII",    "^TWII",     "台灣加權指數",        "index", "TWD"),
     ("GSPC",    "^GSPC",     "S&P 500 指數",        "index", "USD"),
     ("SP500TR", "^SP500TR",  "S&P 500 含息報酬指數", "index", "USD"),
     ("NDX",     "^NDX",      "那斯達克 100 指數",   "index", "USD"),
+    ("IXIC",    "^IXIC",     "那斯達克綜合指數",    "index", "USD"),
     ("TWRI",    "TWSE:MFI94U", "台灣發行量加權股價報酬指數", "index", "TWD"),
     ("USDTWD",  "TWD=X",     "美元兌台幣",          "fx",    "TWD"),
 ]
