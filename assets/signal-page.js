@@ -1,7 +1,7 @@
 /* 「看 A 做 B」訊號回測頁面共用的畫面與流程（Kalman 趨勢回測、均線包絡策略）
    每頁只要提供 cfg：預設參數、讀自訂參數、產生買賣訊號、訊號圖的線、最佳化的格子。 */
 (function () {
-  const VER = "1124e";
+  const VER = "1125a";
   function init(cfg) {
     const { fmt } = ET, info = ETUI.info, cls = ETUI.cls, $ = id => document.getElementById(id);
     const SIGS = [{ k: "TWRI", name: "報酬指數" }, { k: "TWII", name: "加權指數" }];
@@ -70,6 +70,8 @@
     document.querySelectorAll("#customBox input").forEach(x => x.addEventListener("change", run));
     $("useCustom").addEventListener("change", e => { $("customBox").hidden = !e.target.checked; run(); });
     document.querySelector(".quick").addEventListener("click", e => { const b = e.target.closest("button"); if (!b) return;
+      // 快速期間按鈕：迄日一律回到最新一天（按鈕名稱「全期」「近 10 年」都是指到今天）
+      $("end").value = $("end").max;
       $("start").value = b.dataset.q === "10y" ? ET.addYears($("end").value, -10) : b.dataset.q; clearOpt(); run(); });
 
     function render(res) {

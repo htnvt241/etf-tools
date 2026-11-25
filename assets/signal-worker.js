@@ -1,5 +1,5 @@
 /* 「看 A 做 B」高原型最佳化（在背景執行，不卡畫面）。一個 Worker 負責一種組合。 */
-importScripts("signal-bt.js?v=1124e");
+importScripts("signal-bt.js?v=1125a");
 onmessage = ev => {
   const m = ev.data, jm = SB.alignMap(m.aDates, m.bDates), f = SB.fees(m.cost), p = m.bAdj, px = m.aPx, nA = px.length;
   let wins = SB.windows(m.bDates, m.i0, m.i1); if (!wins.length) wins = [[m.i0, m.i1]];

@@ -2,7 +2,7 @@
 <html lang="zh-Hant"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
 <title>退休提領模擬｜ETF 工具箱</title>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=Noto+Sans+TC:wght@400;500;700&display=swap">
-<link rel="stylesheet" href="assets/style.css?v=1124e">
+<link rel="stylesheet" href="assets/style.css?v=1125a">
 </head><body>
 <div class="wrap">
 <header id="top"></header>
@@ -45,9 +45,9 @@
 </div>
 <footer>報酬以還原股價（含息再投入）計算、美股換算成台幣（含匯率變動），未計手續費與稅。模擬方法：把組合的歷史月報酬切成「連續 12 個月」的區塊，每模擬一年就隨機抽一個區塊（保留真實的漲跌幅度、連續崩跌和各 ETF 之間的連動），共模擬 10,000 次。結果反映的是抽樣來源那段歷史的特性，不代表未來。本站僅供學習研究，不構成投資建議。</footer>
 </div>
-<script src="assets/core.js?v=1124e"></script>
-<script src="assets/chart.js?v=1124e"></script>
-<script src="assets/common.js?v=1124e"></script>
+<script src="assets/core.js?v=1125a"></script>
+<script src="assets/chart.js?v=1125a"></script>
+<script src="assets/common.js?v=1125a"></script>
 <script>
 (function(){
   const {fmt, TICKERS, ETF_LIST} = ET;
@@ -251,7 +251,7 @@
       cap: Math.max(1, +$("cap").value || 0), amt: Math.max(0, +$("amt").value || 0), method: $("method").value };
     box.innerHTML = `<h3>穩健配置搜尋<span class="sub">計算中…</span></h3><p class="note" id="optProg">準備中</p><div class="bar"><i id="optBar"></i></div>`;
     if (worker) worker.terminate();
-    worker = new Worker("assets/retire-worker.js?v=1124e");
+    worker = new Worker("assets/retire-worker.js?v=1125a");
     worker.onmessage = ev => { const m = ev.data;
       if (m.type === "progress") { $("optProg").textContent = `試算各種比例：${fmt.num(m.done)} / ${fmt.num(m.total)}`; $("optBar").style.width = (m.done/m.total*100).toFixed(0)+"%"; return; }
       renderSearch(box, m, ctx); };
