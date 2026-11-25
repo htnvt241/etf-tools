@@ -6,12 +6,15 @@
     ["backtest.html", "ETF 回測比較"],
     ["retire.html", "退休提領模擬"],
     ["optimize.html", "ETF 組合最佳化"],
-    // 下拉選單：滑鼠移過去自動展開（手機點一下展開）。以後新增工具就加在 items 裡
+    // 下拉選單：滑鼠移過去自動展開（手機點一下展開）。以後新增工具就加在 items 裡；字串＝小標題
     { title: "其他工具", items: [
+      "台股",
       ["rebalance.html", "正二再平衡回測", "00631L 搭配現金的曝險再平衡：回測、爆倉掃描、最佳化、我的部位"],
       ["kalman.html", "Kalman 趨勢回測", "看報酬指數或加權指數的 Kalman 快慢線，決定 0050／00631L 進出"],
       ["envelope.html", "均線包絡策略", "看報酬指數或加權指數的均線上下軌（可設不同百分比），突破上軌買、跌破下軌賣"],
       ["kd.html", "月KD策略", "看報酬指數或加權指數的月 KD：正交買、負交賣；00631L 另有高檔改買 0050 的策略"],
+      "美股",
+      ["envelope-us.html", "均線包絡策略（美股）", "S&P 500 組：看標普 500 指數／報酬指數做 VOO、SSO；Nasdaq 組：看綜合指數／100 指數做 QQQ、QLD"],
     ] },
   ];
   const here = location.pathname.split("/").pop() || "index.html";
@@ -20,9 +23,9 @@
     top.className = "top";
     const item = p => {
       if (!Array.isArray(p)) {
-        const on = p.items.some(([h]) => h === here);
+        const on = p.items.some(x => Array.isArray(x) && x[0] === here);
         return `<div class="dd${on ? " on" : ""}"><button type="button" class="ddt" aria-haspopup="true">${p.title} <span class="car">▾</span></button>
-          <div class="ddm">${p.items.map(([h, t, d]) => `<a href="${h}" class="${h === here ? "on" : ""}"><b>${t}</b>${d ? `<small>${d}</small>` : ""}</a>`).join("")}</div></div>`;
+          <div class="ddm">${p.items.map(x => typeof x === "string" ? `<div class="ddh">${x}</div>` : `<a href="${x[0]}" class="${x[0] === here ? "on" : ""}"><b>${x[1]}</b>${x[2] ? `<small>${x[2]}</small>` : ""}</a>`).join("")}</div></div>`;
       }
       const [h, t, soon] = p;
       return `<a href="${h}" class="${h === here ? "on" : ""}${soon ? " soon" : ""}">${t}</a>`;

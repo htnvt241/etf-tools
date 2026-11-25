@@ -1,25 +1,30 @@
 /* 「看 A 做 B」訊號回測頁面共用的畫面與流程（Kalman 趨勢回測、均線包絡策略）
    每頁只要提供 cfg：預設參數、讀自訂參數、產生買賣訊號、訊號圖的線、最佳化的格子。 */
 (function () {
-  const VER = "1125a";
+  const VER = "1125c";
   function init(cfg) {
     const { fmt } = ET, info = ETUI.info, cls = ETUI.cls, $ = id => document.getElementById(id);
-    const SIGS = [{ k: "TWRI", name: "報酬指數" }, { k: "TWII", name: "加權指數" }];
+    const SIGS = cfg.sigs || [{ k: "TWRI", name: "報酬指數" }, { k: "TWII", name: "加權指數" }];
     // B：一檔，或多檔（例如「平常買 00631L、高檔改買 0050」），assets 的順序＝on 訊號代碼 1、2…
     const TGTS = cfg.targets || [{ k: "0050", name: "0050", assets: ["0050"] }, { k: "00631L", name: "00631L", assets: ["00631L"] }];
     const COMBOS = []; SIGS.forEach(a => TGTS.forEach(b => COMBOS.push({ a, b, id: a.k + ">" + b.k, label: `看${a.name}做 ${b.label || b.name}` })));
     const D = {}, A = {}, B = {}, JM = {};
     const st = { opt: null, view: COMBOS[0].id };
 
-    Promise.all(["TWRI", "TWII", "0050", "00631L"].map(k => ET.load(k).then(s => D[k] = s))).then(start)
+    Promise.all((cfg.loadKeys || ["TWRI", "TWII", "0050", "00631L"]).map(k => ET.load(k).then(s => D[k] = s))).then(start)
       .catch(e => { $("out").innerHTML = `<div class="card err">資料讀取失敗：${e.message}</div>`; });
 
     function start() {
-      const S = {};
-      S["0050"] = { dates: D["0050"].dates, adj: Float64Array.from(D["0050"].adj), estN: 0 };
-      const c = ET.calibrate(D["00631L"], D["0050"], 2), ex = ET.extend(D["00631L"], D["0050"], 2, c.drag);
-      S["00631L"] = { dates: ex.dates, adj: Float64Array.from(ex.adj), estN: ex.estN, drag: c.drag };
-      st.drag = c.drag;
+      // 各檔 B 的價格（上市前的推估一起接好），est＝推估說明
+      let S;
+      if (cfg.buildSeries) S = cfg.buildSeries(D);
+      else {
+        S = {};
+        S["0050"] = { dates: D["0050"].dates, adj: Float64Array.from(D["0050"].adj), estN: 0 };
+        const c = ET.calibrate(D["00631L"], D["0050"], 2), ex = ET.extend(D["00631L"], D["0050"], 2, c.drag);
+        S["00631L"] = { dates: ex.dates, adj: Float64Array.from(ex.adj), estN: ex.estN, est: `2×0050 減年成本 ${fmt.pct(c.drag, 2)}，準確度中等` };
+      }
+      st.S = S;
       TGTS.forEach(t => {
         if (t.assets.length === 1) { const x = S[t.assets[0]]; B[t.k] = { ...x, px: [x.adj] }; return; }
         // 多檔：用第一檔的日期，其他檔對齊（沒有價格的日子沿用前一天，例如分割暫停交易）
@@ -27,16 +32,18 @@
           for (let i = 0; i < base.dates.length; i++) { while (j + 1 < y.dates.length && y.dates[j + 1] <= base.dates[i]) j++; o[i] = j >= 0 ? y.adj[j] : NaN; } return o; });
         B[t.k] = { dates: base.dates, adj: px[0], px, estN: Math.max(...t.assets.map(k => S[k].estN)) };
       });
-      // A 從 2003 年起（和報酬指數同一個起點，兩種訊號公平比較）
-      SIGS.forEach(a => { const s = D[a.k], i0 = ET.lowerBound(s.dates, "2003-01-02"); A[a.k] = { dates: s.dates.slice(i0), px: Float64Array.from(s.adj.slice(i0)) }; });
+      // A 從同一天起算（台股 2003 年＝報酬指數的起點，兩種訊號公平比較；前一年留給指標暖機）
+      SIGS.forEach(a => { const s = D[a.k], i0 = ET.lowerBound(s.dates, cfg.aFrom || "2003-01-02"); A[a.k] = { dates: s.dates.slice(i0), px: Float64Array.from(s.adj.slice(i0)) }; });
       COMBOS.forEach(cb => JM[cb.id] = SB.alignMap(A[cb.a.k].dates, B[cb.b.k].dates));
-      const last = [...TGTS.map(t => B[t.k].dates.at(-1)), A.TWRI.dates.at(-1), A.TWII.dates.at(-1)].sort()[0];
+      const last = [...TGTS.map(t => B[t.k].dates.at(-1)), ...SIGS.map(a => A[a.k].dates.at(-1))].sort()[0];
       if (cfg.ready) cfg.ready(A, D);
-      $("start").value = "2004-01-02"; $("end").value = last; $("start").min = "2003-07-01"; $("end").max = last;
+      $("start").value = cfg.defStart || "2004-01-02"; $("end").value = last; $("start").min = cfg.minStart || "2003-07-01"; $("end").max = last;
       run();
     }
 
-    const cost = () => ({ disc: Math.max(0, +$("disc").value || 0), tax: Math.max(0, +$("tax").value || 0) / 100 });
+    // 台股：手續費 0.1425% × 折扣，賣出加證交稅；美股：直接輸入每次買賣的手續費 %（沒有證交稅）
+    const cost = () => $("fee") ? { disc: Math.max(0, +$("fee").value || 0) / 0.1425, tax: 0 }
+      : { disc: Math.max(0, +$("disc").value || 0), tax: Math.max(0, +$("tax").value || 0) / 100 };
     function range(bs) { return [Math.max(1, ET.lowerBound(bs.dates, $("start").value)), ET.floorIdx(bs.dates, $("end").value)]; }
     function paramSets(id) {
       const sets = [{ key: "def", name: "預設 " + cfg.fmt(cfg.DEF), ps: cfg.DEF }];
@@ -58,7 +65,7 @@
       }
       return { cb, bs, i0, i1, rows };
     }
-    function run() { if (!st.drag) return; render(COMBOS.map(cb => evalCombo(cb, paramSets(cb.id)))); }
+    function run() { if (!st.S) return; render(COMBOS.map(cb => evalCombo(cb, paramSets(cb.id)))); }
 
     $("run").addEventListener("click", run);
     // ---------- 我的參數：存在這台電腦，有設定 GitHub 同步時一併存到你的私人專案 ----------
@@ -66,7 +73,7 @@
     $("out").addEventListener("click", e => { const b = e.target.closest("[data-saveopt]"); if (!b || !st.opt) return;
       const id = b.dataset.saveopt, o = st.opt[id], cb = COMBOS.find(c => c.id === id); MY.add(`${cb.label} 最佳化`, o.ps); });
     const clearOpt = () => { if (st.opt) { st.opt = null; $("optH").textContent = "期間或成本已改變，請重新跑最佳化。"; } };
-    ["start", "end", "disc", "tax"].forEach(id => $(id).addEventListener("change", () => { clearOpt(); run(); }));
+    ["start", "end", "disc", "tax", "fee"].filter(id => $(id)).forEach(id => $(id).addEventListener("change", () => { clearOpt(); run(); }));
     document.querySelectorAll("#customBox input").forEach(x => x.addEventListener("change", run));
     $("useCustom").addEventListener("change", e => { $("customBox").hidden = !e.target.checked; run(); });
     document.querySelector(".quick").addEventListener("click", e => { const b = e.target.closest("button"); if (!b) return;
@@ -75,10 +82,12 @@
       $("start").value = b.dataset.q === "10y" ? ET.addYears($("end").value, -10) : b.dataset.q; clearOpt(); run(); });
 
     function render(res) {
-      const yrs = res[0].rows[0].r.yrs, e6 = res.find(x => x.i0 < x.bs.estN);
-      const anyEst = !!e6;
+      const yrs = res[0].rows[0].r.yrs;
+      // 期間內用到推估價格的各檔 B，列出推估到哪一天、怎麼推估
+      const estK = [...new Set(res.flatMap(x => x.cb.b.assets.filter(k => st.S[k].estN && ET.lowerBound(st.S[k].dates, x.bs.dates[x.i0]) < st.S[k].estN)))];
+      const anyEst = estK.length > 0;
       let h = `<section class="card"><h3>績效比較<span class="sub">${$("start").value} ～ ${$("end").value}，約 ${yrs.toFixed(1)} 年｜隔天收盤成交，空頭持有現金</span></h3>
-        ${anyEst ? `<p class="note" style="margin:0 0 8px">00631L 在 ${e6.bs.dates[e6.bs.estN - 1]} 以前為推估價格<span class="esttag">含推估</span>（2×0050 減年成本 ${fmt.pct(st.drag, 2)}，準確度中等）。</p>` : ""}
+        ${anyEst ? `<p class="note" style="margin:0 0 8px">${estK.map(k => `${k} 在 ${st.S[k].dates[st.S[k].estN - 1]} 以前為推估價格（${st.S[k].est}）`).join("；")}<span class="esttag">含推估</span>。</p>` : ""}
         <div class="tw"><table><thead><tr><th class="l">看 A 做 B</th><th class="l">參數</th><th>總報酬率</th><th>年化報酬率</th><th>最大回撤</th><th>報酬÷回撤${info("年化報酬率 ÷ 最大回撤。每承受 1% 的回撤，換到多少年化報酬，越高越好。")}</th>
         <th>最差 10 年區間年化${info("期間內每年起算一個 10 年區間（再加上最近 10 年），這組參數在最倒楣的那個 10 年的年化報酬。期間不滿 10 年時不計算。")}</th>
         <th>交易次數${info("完整的一買一賣算一次。期末還持有的那一筆也算一次（以期末市值計勝負）。")}</th><th>勝率${info("賺錢的交易占全部交易的比例。")}</th><th>持有時間</th></tr></thead><tbody>`;
@@ -91,7 +100,7 @@
           <td>${SB.calmar(r).toFixed(2)}</td><td class="${cls(r.worst10)}">${isFinite(r.worst10) ? fmt.spct(r.worst10, 1) : "—"}</td>
           <td>${bh ? "—" : r.trades}</td><td>${bh || !r.trades ? "—" : fmt.pct(r.wins / r.trades, 0)}</td><td>${fmt.pct(r.inPct, 0)}</td></tr>`;
       }));
-      h += `</tbody></table></div><p class="note">「一直持有」是同一段期間買進後不動的對照組。報酬指數和加權指數只是用來判斷多空的訊號，實際買賣的都是 0050 或 00631L。</p></section>
+      h += `</tbody></table></div><p class="note">「一直持有」是同一段期間買進後不動的對照組。${SIGS.map(a => a.name).join("和")}只是用來判斷多空的訊號，實際買賣的都是 ${[...new Set(TGTS.flatMap(t => t.assets))].join(" 或 ")}。</p></section>
         <section class="card"><h3>走勢與買賣點<span class="sub">選一個組合查看</span></h3>
         <div class="tools" style="margin-bottom:8px"><div class="seg" id="viewSeg">${COMBOS.map(cb => `<button type="button" data-v="${cb.id}" class="${cb.id === st.view ? "on" : ""}">${cb.label}</button>`).join("")}</div>
         <label>參數 <select id="viewPs" class="selS"></select></label></div>
@@ -133,7 +142,7 @@
 
     // ---------- 高原型最佳化：4 種組合各開一個 Worker 同時計算 ----------
     if (cfg.opt) $("opt").addEventListener("click", () => {
-      if (!st.drag) return;
+      if (!st.S) return;
       const t0 = performance.now(), cst = cost(), done = {}, prog = {};
       $("opt").disabled = true; $("optH").textContent = "計算中…";
       const jobs = COMBOS.map(cb => new Promise((ok, fail) => {
