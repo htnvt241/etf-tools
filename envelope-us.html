@@ -12,9 +12,9 @@
 <div class="grid">
 <form class="rail" id="f" onsubmit="return false">
   <h4>包絡參數<span id="parI"></span></h4>
-  <div class="row2"><label>中軌（SMA 天數）<input type="number" value="150" disabled></label><span></span></div>
-  <div class="row2"><label>上軌 +x %<input type="number" value="2" disabled></label><label>下軌 −y %<input type="number" value="4.5" disabled></label></div>
-  <p class="hint">預設參數 150 日均線、上軌 +2%、下軌 −4.5%，一定會列在結果裡，當作比較基準。</p>
+  <div class="row2"><label>中軌（SMA 天數）<input id="dN" type="number" value="150" disabled></label><span></span></div>
+  <div class="row2"><label>上軌 +x %<input id="dX" type="number" value="2" disabled></label><label>下軌 −y %<input id="dY" type="number" value="4.5" disabled></label></div>
+  <p class="hint" id="dH">預設參數 150 日均線、上軌 +2%、下軌 −4.5%，一定會列在結果裡，當作比較基準。</p>
   <label class="chk"><input type="checkbox" id="useCustom"><span>另外測試自訂參數</span></label>
   <div id="customBox" hidden style="display:grid;gap:10px">
     <div class="row2"><label>中軌（SMA 天數）<input id="cN" type="number" min="5" max="400" step="1" value="120"></label><span></span></div>
@@ -61,13 +61,18 @@ document.getElementById("parI").innerHTML = ETUI.info("中軌是指數收盤價�
     sp: { sigs: [{ k: "GSPC", name: "標普 500 指數" }, { k: "SP500TR", name: "標普 500 報酬指數" }],
           targets: [{ k: "VOO", name: "VOO", assets: ["VOO"] }, { k: "SSO", name: "SSO", assets: ["SSO"] }],
           desc: "S&P 500 組：比較用「標普 500 指數（不含息）」和「標普 500 報酬指數（含息）」當訊號，買賣 VOO 或 SSO（2 倍）。",
+          DEF: { n: 150, x: 2, y: 4.5 },
           estH: "VOO 在 2010/9 上市前用 S&P 500 含息報酬指數推估（準確度很高）；SSO 在 2006/6 上市前用 S&P 500 含息報酬指數 ×2 減成本推估（準確度中等），推估期間會標示。" },
     nq: { sigs: [{ k: "IXIC", name: "那斯達克綜合指數" }, { k: "NDX", name: "那斯達克 100 指數" }],
           targets: [{ k: "QQQ", name: "QQQ", assets: ["QQQ"] }, { k: "QLD", name: "QLD", assets: ["QLD"] }],
           desc: "Nasdaq 組：比較用「那斯達克綜合指數」和「那斯達克 100 指數」（兩個都不含息）當訊號，買賣 QQQ 或 QLD（2 倍）。",
+          DEF: { n: 200, x: 5.5, y: 6 },
           estH: "QQQ 在 1999/3 上市前用那斯達克 100 指數推估（準確度高）；QLD 在 2006/6 上市前用 QQQ 每日報酬 ×2 減成本推估（準確度中等），推估期間會標示。" }
   }[G];
   $("grpDesc").textContent = GRP.desc; $("estH").textContent = GRP.estH;
+  // 兩組的預設參數不同（Nasdaq 組依回測分析改為 200 日、+5.5%、−6%）
+  $("dN").value = GRP.DEF.n; $("dX").value = GRP.DEF.x; $("dY").value = GRP.DEF.y;
+  $("dH").textContent = `預設參數 ${GRP.DEF.n} 日均線、上軌 +${GRP.DEF.x}%、下軌 −${GRP.DEF.y}%，一定會列在結果裡，當作比較基準。`;
   // 上市前推估：lev 倍的基準每日報酬，減掉重疊期間校準出來的年成本
   const ext = (t, b, lev, accTxt, baseTxt) => { const c = ET.calibrate(t, b, lev), x = ET.extend(t, b, lev, c.drag);
     return { dates: x.dates, adj: Float64Array.from(x.adj), estN: x.estN, est: `${baseTxt}${lev > 1 ? " ×" + lev : ""}${c.drag >= 0 ? " 減" : " 加"}年差異 ${ET.fmt.pct(Math.abs(c.drag), 2)}，準確度${accTxt}` }; };
@@ -82,7 +87,7 @@ document.getElementById("parI").innerHTML = ETUI.info("中軌是指數收盤價�
     aFrom: "1999-01-04", defStart: "2000-01-03", minStart: "1999-07-01",
     key: "envelope-us",
     fillCustom: ps => { $("cN").value = ps.n; $("cX").value = ps.x; $("cY").value = ps.y; },
-    DEF: { n: 150, x: 2, y: 4.5 },
+    DEF: GRP.DEF,
     fmt: ps => `${ps.n}日 +${pct(ps.x)}／−${pct(ps.y)}`,
     readCustom: () => { const n = Math.round(+$("cN").value), x = +$("cX").value, y = +$("cY").value;
       return n >= 2 && x >= 0 && y >= 0 && isFinite(x) && isFinite(y) ? { n, x, y } : null; },
