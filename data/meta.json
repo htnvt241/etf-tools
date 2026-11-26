@@ -94,8 +94,8 @@
    "kind": "index",
    "ccy": "TWD",
    "first": "1997-07-02",
-   "last": "2026-11-25",
-   "rows": 7204,
+   "last": "2026-11-26",
+   "rows": 7205,
    "source": "yahoo-chart",
    "fix_version": "7c5ad25f5b"
   },
@@ -149,8 +149,8 @@
    "kind": "index",
    "ccy": "TWD",
    "first": "2003-01-02",
-   "last": "2026-11-25",
-   "rows": 5881,
+   "last": "2026-11-26",
+   "rows": 5882,
    "source": "twse",
    "fix_version": "7c5ad25f5b"
   },
@@ -177,6 +177,6 @@
    "fix_version": "7c5ad25f5b"
   }
  },
- "updated": "2026-11-26 12:22",
+ "updated": "2026-11-26 17:27",
  "fix_version": "7c5ad25f5b"
 }
