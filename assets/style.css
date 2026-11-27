@@ -224,3 +224,9 @@ tr.sigsep td{border-top:2px solid var(--mute)}
 .sigt .mono{font-family:var(--mono,"IBM Plex Mono",monospace);font-size:12.5px}
 .sigt sup{color:var(--accent);margin-left:1px}
 @media (max-width:560px){.sigt .pcol{display:none}.sigt .yr{display:none}.sigt{font-size:13px}.sigt td,.sigt th{padding-left:5px;padding-right:5px}}
+/* 我的參數：勾選框固定大小；按鈕放在名稱下面一排，名稱長也不會擠 */
+.myp{flex-direction:column;align-items:stretch;gap:6px}
+.myp .chk{width:100%}
+.myp .chk input{flex:0 0 auto;width:16px;height:16px;margin-top:2px}
+.myp .chk span{min-width:0;overflow-wrap:anywhere}
+.myb{justify-content:flex-end;flex-wrap:wrap}
