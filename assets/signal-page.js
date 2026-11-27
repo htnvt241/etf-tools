@@ -1,7 +1,7 @@
 /* 「看 A 做 B」訊號回測頁面共用的畫面與流程（Kalman 趨勢回測、均線包絡策略）
    每頁只要提供 cfg：預設參數、讀自訂參數、產生買賣訊號、訊號圖的線、最佳化的格子。 */
 (function () {
-  const VER = "1125c";
+  const VER = "1127a";
   function init(cfg) {
     const { fmt } = ET, info = ETUI.info, cls = ETUI.cls, $ = id => document.getElementById(id);
     const SIGS = cfg.sigs || [{ k: "TWRI", name: "報酬指數" }, { k: "TWII", name: "加權指數" }];
@@ -46,8 +46,9 @@
       : { disc: Math.max(0, +$("disc").value || 0), tax: Math.max(0, +$("tax").value || 0) / 100 };
     function range(bs) { return [Math.max(1, ET.lowerBound(bs.dates, $("start").value)), ET.floorIdx(bs.dates, $("end").value)]; }
     function paramSets(id) {
-      const sets = [{ key: "def", name: "預設 " + cfg.fmt(cfg.DEF), ps: cfg.DEF }];
-      MY.list().filter(m => m.show).forEach(m => sets.push({ key: "my:" + m.id, name: "我的：" + esc(m.name), ps: m.ps, my: m }));
+      const d = MY.def();
+      const sets = [d ? { key: "def", name: `預設：${esc(d.name)}${d.name !== cfg.fmt(d.ps) ? " " + cfg.fmt(d.ps) : ""}`, ps: d.ps } : { key: "def", name: "預設 " + cfg.fmt(cfg.DEF), ps: cfg.DEF }];
+      MY.list().filter(m => m.show && m !== d).forEach(m => sets.push({ key: "my:" + m.id, name: "我的：" + esc(m.name), ps: m.ps, my: m }));
       if ($("useCustom").checked) { const ps = cfg.readCustom(); if (ps) sets.push({ key: "cus", name: "自訂 " + cfg.fmt(ps), ps }); }
       if (st.opt && st.opt[id]) { const o = st.opt[id]; sets.push({ key: "opt", name: "最佳化 " + cfg.fmt(o.ps), ps: o.ps, o }); }
       return sets;
@@ -177,7 +178,17 @@
 
   function myParams(cfg, rerun, $) {
     let DB = lsGet(LS) || { pages: {}, updated: 0, dirty: false };
-    DB.pages = DB.pages || {};
+    DB.pages = DB.pages || {}; DB.defaults = DB.defaults || {};
+    const defKey = cfg.defKey || cfg.key;   // 美股頁兩組共用一份清單，但各有自己的預設
+    const defItem = () => list().find(m => m.id === DB.defaults[defKey]) || null;
+    // 左側「預設參數」欄位和說明，跟著目前的預設更新
+    const defInputs = [...document.querySelectorAll("#f input[disabled]")], defHint = [...document.querySelectorAll("#f p.hint")].find(p => /一定會列在結果裡/.test(p.textContent));
+    function drawDefault() {
+      const d = defItem(), ps = d ? d.ps : cfg.DEF;
+      Object.keys(cfg.DEF).forEach((k, i) => { if (defInputs[i]) defInputs[i].value = ps[k]; });
+      if (defHint) defHint.innerHTML = d ? `目前的預設是你指定的「<b>${esc(d.name)}</b>」（${cfg.fmt(ps)}），一定會列在結果裡，也是市場儀表板「市場技術多空」用的參數。原始預設是 ${cfg.fmt(cfg.DEF)}。`
+        : `預設參數 ${cfg.fmt(cfg.DEF)}，一定會列在結果裡，也是市場儀表板「市場技術多空」用的參數。可以在「我的參數」裡把任何一組設為預設。`;
+    }
     const GH = lsGet(LS_GH), cloud = { st: GH && GH.token ? "loading" : "none", msg: "", sha: null, tmr: null, at: null };
     const list = () => DB.pages[cfg.key] || (DB.pages[cfg.key] = []);
     const same = (a, b) => JSON.stringify(a) === JSON.stringify(b);
@@ -189,9 +200,11 @@
 
     function draw() {
       const L = list(), nShow = L.filter(m => m.show).length;
-      $("myList").innerHTML = L.length ? L.map(m => `<div class="myp"><label class="chk"><input type="checkbox" data-show="${m.id}" ${m.show ? "checked" : ""} ${!m.show && nShow >= MAXSHOW ? "disabled" : ""}><span><b>${esc(m.name)}</b>${m.name !== cfg.fmt(m.ps) ? `<br><span class="sub">${cfg.fmt(m.ps)}</span>` : ""}</span></label>
-          <span class="myb"><button type="button" class="minib" data-fill="${m.id}" title="把這組參數填進自訂參數欄位">填入</button><button type="button" class="minib del" data-del="${m.id}">刪除</button></span></div>`).join("")
-        + `<p class="hint" style="margin:2px 0 0">勾選的參數會加進比較表（最多 ${MAXSHOW} 組）。</p>`
+      drawDefault();
+      const dId = DB.defaults[defKey];
+      $("myList").innerHTML = L.length ? L.map(m => `<div class="myp${m.id === dId ? " isdef" : ""}"><label class="chk"><input type="checkbox" data-show="${m.id}" ${m.show ? "checked" : ""} ${!m.show && nShow >= MAXSHOW ? "disabled" : ""}><span>${m.id === dId ? '<span class="defstar" title="目前的預設">⭐ 預設</span> ' : ""}<b>${esc(m.name)}</b>${m.name !== cfg.fmt(m.ps) ? `<br><span class="sub">${cfg.fmt(m.ps)}</span>` : ""}</span></label>
+          <span class="myb">${m.id === dId ? `<button type="button" class="minib" data-undef="1" title="改回原始預設 ${cfg.fmt(cfg.DEF)}">取消預設</button>` : `<button type="button" class="minib" data-def="${m.id}" title="比較表的「預設」和市場儀表板都改用這組">設為預設</button>`}<button type="button" class="minib" data-fill="${m.id}" title="把這組參數填進自訂參數欄位">填入</button><button type="button" class="minib del" data-del="${m.id}">刪除</button></span></div>`).join("")
+        + `<p class="hint" style="margin:2px 0 0">勾選的參數會加進比較表（最多 ${MAXSHOW} 組）。按「設為預設」後，比較表的「預設」和市場儀表板都會改用那一組${dId ? `；按「取消預設」改回原始預設 ${cfg.fmt(cfg.DEF)}` : ""}。</p>`
         : `<p class="hint" style="margin:0">還沒有存任何參數。勾選下方「另外測試自訂參數」輸入後按「儲存」，或在最佳化結果旁按「存成我的參數」。</p>`;
       const t = cloud.at ? cloud.at.toLocaleTimeString("zh-TW", { hour: "2-digit", minute: "2-digit" }) : "";
       $("mySync").innerHTML = cloud.st === "none" ? "只存在這台電腦的瀏覽器。在「正二再平衡回測 → 我的部位」設定 GitHub 同步後，這裡會自動用同一組設定同步。"
@@ -209,11 +222,15 @@
     $("mySave").addEventListener("click", () => { const ps = cfg.readCustom(); if (!ps) { alert("自訂參數不正確，請檢查後再儲存。"); return; } add($("myName").value, ps); $("myName").value = ""; });
     $("myList").addEventListener("change", e => { const id = e.target.dataset.show; if (!id) return; const m = list().find(x => x.id === id); if (m) { m.show = e.target.checked; changed(); } });
     $("myList").addEventListener("click", e => {
-      const f = e.target.closest("[data-fill]"), d = e.target.closest("[data-del]");
+      const f = e.target.closest("[data-fill]"), d = e.target.closest("[data-del]"), sd = e.target.closest("[data-def]"), ud = e.target.closest("[data-undef]");
+      if (sd) { DB.defaults[defKey] = sd.dataset.def; changed(); return; }
+      if (ud) { delete DB.defaults[defKey]; changed(); return; }
       if (f) { const m = list().find(x => x.id === f.dataset.fill); if (!m) return; cfg.fillCustom(m.ps); $("myName").value = m.name;
         if (!$("useCustom").checked) { $("useCustom").checked = true; $("customBox").hidden = false; } rerun(); }
       if (d) { const m = list().find(x => x.id === d.dataset.del); if (!m || !confirm(`確定要刪除「${m.name}」${m.name !== cfg.fmt(m.ps) ? "（" + cfg.fmt(m.ps) + "）" : ""}嗎？`)) return;
-        DB.pages[cfg.key] = list().filter(x => x !== m); changed(); }
+        DB.pages[cfg.key] = list().filter(x => x !== m);
+        Object.keys(DB.defaults).forEach(k => { if (DB.defaults[k] === m.id) delete DB.defaults[k]; });   // 刪掉的是預設 → 改回原始預設
+        changed(); }
     });
 
     // GitHub：GitHub contents API 讀寫私人專案裡的 strategy-params.json
@@ -221,7 +238,7 @@
       { method, cache: "no-store", headers: { Authorization: "Bearer " + GH.token, Accept: "application/vnd.github+json" }, body: body ? JSON.stringify(body) : undefined });
     async function pull() { const r = await ghReq("GET"); if (r.status === 404) return { data: null, sha: null }; if (!r.ok) throw { code: r.status }; const j = await r.json(); return { data: JSON.parse(b64d(j.content)), sha: j.sha }; }
     async function write() {
-      const out = { pages: DB.pages, updated: DB.updated }, body = { message: "更新策略參數 " + new Date().toLocaleString("zh-TW"), content: b64e(JSON.stringify(out, null, 1)) };
+      const out = { pages: DB.pages, defaults: DB.defaults, updated: DB.updated }, body = { message: "更新策略參數 " + new Date().toLocaleString("zh-TW"), content: b64e(JSON.stringify(out, null, 1)) };
       if (cloud.sha) body.sha = cloud.sha;
       let r = await ghReq("PUT", body);
       if (r.status === 409 || r.status === 422) { const p = await pull(); cloud.sha = p.sha; if (p.sha) body.sha = p.sha; else delete body.sha; r = await ghReq("PUT", body); }
@@ -238,11 +255,27 @@
         const remote = p.data && p.data.pages ? p.data : null;
         // 這台電腦有還沒同步上去、而且比較新的修改 → 以這台為準上傳；否則以 GitHub 上的為準
         if (!remote || (DB.dirty && DB.updated > (remote.updated || 0))) { cloud.st = "ok"; push(); return; }
-        DB = { pages: remote.pages, updated: remote.updated || 0, dirty: false }; lsSet(LS, DB);
+        DB = { pages: remote.pages, defaults: remote.defaults || {}, updated: remote.updated || 0, dirty: false }; lsSet(LS, DB);
         cloud.st = "ok"; cloud.at = new Date(); draw(); rerun();
       } catch (e) { cloud.st = "err"; cloud.msg = ghErr(e); draw(); }
     })();
-    return { list, add };
+    return { list, add, def: defItem };
   }
-  window.SPage = { init };
+  // 市場儀表板用：讀出各策略目前的預設參數。先回傳這台電腦存的，有設定 GitHub 同步時再讀 GitHub 上的版本（onRemote）
+  function loadDefaults(onRemote) {
+    const pick = db => { const out = {}; if (!db || !db.pages) return out;
+      Object.entries(db.defaults || {}).forEach(([dk, id]) => { const page = dk.split(":")[0], m = (db.pages[page] || []).find(x => x.id === id); if (m) out[dk] = { name: m.name, ps: m.ps }; });
+      return out; };
+    const local = lsGet(LS), GH = lsGet(LS_GH);
+    if (GH && GH.token && onRemote) {
+      fetch(`https://api.github.com/repos/${encodeURIComponent(GH.owner)}/${encodeURIComponent(GH.repo)}/contents/${GH_PATH}`, { cache: "no-store", headers: { Authorization: "Bearer " + GH.token, Accept: "application/vnd.github+json" } })
+        .then(r => r.ok ? r.json() : null).then(j => {
+          if (!j) return; const remote = JSON.parse(b64d(j.content));
+          if (local && local.dirty && local.updated > (remote.updated || 0)) return;   // 這台電腦有較新的、還沒同步的修改
+          onRemote(pick(remote));
+        }).catch(() => {});
+    }
+    return pick(local);
+  }
+  window.SPage = { init, loadDefaults };
 })();

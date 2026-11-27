@@ -2,11 +2,17 @@
 <html lang="zh-Hant"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
 <title>市場儀表板｜ETF 工具箱</title>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=Noto+Sans+TC:wght@400;500;700&display=swap">
-<link rel="stylesheet" href="assets/style.css?v=1125c">
+<link rel="stylesheet" href="assets/style.css?v=1127a">
 </head><body>
 <div class="wrap">
 <header id="top"></header>
 <h1>市場儀表板</h1>
+
+<div class="section-t">市場技術多空<span class="sub">（各策略用「預設參數」的最近一次買賣訊號；訊號在收盤後確定，隔天收盤成交）</span></div>
+<div class="two" id="sig">
+  <section class="card"><h3>台灣</h3><div class="tw"><table class="sigt" id="sig-tw"><tbody><tr><td class="loading">讀取中…</td></tr></tbody></table></div></section>
+  <section class="card"><h3>美國</h3><div class="tw"><table class="sigt" id="sig-us"><tbody><tr><td class="loading">讀取中…</td></tr></tbody></table></div></section>
+</div>
 
 <div class="section-t">市場指數</div>
 <div class="two" id="idx">
@@ -21,9 +27,55 @@
 
 <footer>資料來源：Yahoo Finance，每個交易日收盤後自動更新。指數為價格指數（不含股息），ETF 報酬以還原股價（含息）計算。本站僅供學習研究，不構成投資建議。</footer>
 </div>
-<script src="assets/core.js?v=1125c"></script>
-<script src="assets/chart.js?v=1125c"></script>
-<script src="assets/common.js?v=1125c"></script>
+<script src="assets/core.js?v=1127a"></script>
+<script src="assets/chart.js?v=1127a"></script>
+<script src="assets/common.js?v=1127a"></script>
+<script src="assets/signal-bt.js?v=1127a"></script>
+<script src="assets/strategies.js?v=1127a"></script>
+<script src="assets/signal-page.js?v=1127a"></script>
+<script>
+// ---- 市場技術多空：各策略預設參數的最近一次買賣（規則和策略頁共用 assets/strategies.js） ----
+(function(){
+  const US_DEF = { sp: { n: 150, x: 2, y: 4.5 }, nq: { n: 200, x: 5.5, y: 6 } };
+  const short = { kalman: ps => `${ps.s}／${ps.l}`, envelope: ps => `${ps.n}／+${+ps.x}／−${+ps.y}`, kd: ps => `KD ${ps.n}` };
+  // [市場, 策略名稱, 連結, 規則, 預設參數的鍵, 原始預設, A 的資料起點, [[指數代號, 顯示名稱], ...]]
+  const ROWS = [
+    ["tw", "Kalman 趨勢", "kalman.html", "kalman", "kalman", ST.kalman.DEF, "2003-01-02", [["TWRI", "報酬指數"], ["TWII", "加權指數"]]],
+    ["tw", "均線包絡", "envelope.html", "envelope", "envelope", ST.envelope.DEF, "2003-01-02", [["TWRI", "報酬指數"], ["TWII", "加權指數"]]],
+    ["tw", "月KD", "kd.html", "kd", "kd", ST.kd.DEF, "2003-01-02", [["TWRI", "報酬指數"], ["TWII", "加權指數"]]],
+    ["us", "均線包絡", "envelope-us.html?g=sp", "envelope", "envelope-us:sp", US_DEF.sp, "1999-01-04", [["GSPC", "標普 500"], ["SP500TR", "標普 500 報酬"]]],
+    ["us", "均線包絡", "envelope-us.html?g=nq", "envelope", "envelope-us:nq", US_DEF.nq, "1999-01-04", [["IXIC", "那斯達克綜合"], ["NDX", "那斯達克 100"]]],
+  ];
+  const D = {};
+  const keys = ["TWRI", "TWII", "GSPC", "SP500TR", "IXIC", "NDX"];
+  Promise.all([...keys.map(k => ET.load(k).then(s => D[k] = s)), ST.kd.loadHL()]).then(() => {
+    render(SPage.loadDefaults(render));
+  }).catch(e => { ["sig-tw", "sig-us"].forEach(id => document.getElementById(id).innerHTML = `<tbody><tr><td class="err">讀取失敗：${e.message}</td></tr></tbody>`); });
+  const A = {};
+  function series(k, from) { const key = k + from; if (!A[key]) { const s = D[k], i0 = ET.lowerBound(s.dates, from); A[key] = { dates: s.dates.slice(i0), px: Float64Array.from(s.adj.slice(i0)) }; } return A[key]; }
+  const yr = d => `<span class="yr">${d.slice(0, 5)}</span>${d.slice(5)}`;   // 手機上省略年份
+  function render(defs) {
+    const out = { tw: "", us: "" };
+    ROWS.forEach(([mk, name, href, rule, dk, def, from, sigs], gi) => {
+      const my = defs[dk], ps = my ? my.ps : def;
+      sigs.forEach(([k, label], si) => {
+        const r = ST[rule].last(series(k, from), k, ps);
+        const act = r ? `<b class="${r.act === "買進" ? "pos" : "neg"}">${r.act}</b>` : "—";
+        out[mk] += `<tr class="${si === 0 && out[mk] ? "gap" : ""}">
+          <td class="l">${si === 0 ? `<a href="${href}">${name}</a>` : ""}</td><td class="l">${label}</td>
+          <td class="l mono pcol" title="${my ? "你指定的預設：" + my.name.replace(/"/g, "&quot;") : "原始預設"}">${short[rule](ps)}${my ? "<sup>*</sup>" : ""}</td>
+          <td class="mono">${r ? yr(r.sig) : "—"}</td><td class="mono">${r ? (r.trade ? yr(r.trade) : "下個交易日") : "—"}</td><td>${act}</td></tr>`;
+      });
+    });
+    const head = `<thead><tr><th class="l">策略</th><th class="l">訊號指數</th><th class="l pcol">參數</th><th>訊號日</th><th>成交日</th><th>動作</th></tr></thead>`;
+    const anyMy = Object.keys(defs).length > 0;
+    document.getElementById("sig-tw").innerHTML = head + "<tbody>" + out.tw + "</tbody>";
+    document.getElementById("sig-us").innerHTML = head + "<tbody>" + out.us + "</tbody>";
+    document.querySelectorAll("#sig .signote").forEach(x => x.remove());
+    if (anyMy) document.querySelectorAll("#sig .card").forEach(c => c.insertAdjacentHTML("beforeend", `<p class="note signote" style="margin:6px 0 0"><sup>*</sup> 你在策略頁「我的參數」指定的預設；滑鼠移到參數上可以看名稱。</p>`));
+  }
+})();
+</script>
 <script>
 (function(){
   const {fmt, TICKERS, ETF_LIST} = ET;

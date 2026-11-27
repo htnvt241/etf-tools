@@ -2,7 +2,7 @@
 <html lang="zh-Hant"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
 <title>Kalman 趨勢回測｜ETF 工具箱</title>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=Noto+Sans+TC:wght@400;500;700&display=swap">
-<link rel="stylesheet" href="assets/style.css?v=1125c">
+<link rel="stylesheet" href="assets/style.css?v=1127a">
 </head><body>
 <div class="wrap">
 <header id="top"></header>
@@ -33,30 +33,26 @@
 </div>
 <footer>報酬以還原股價（含息）計算；手續費＝成交金額 × 0.1425% × 折扣，賣出另計證交稅。Kalman 濾波公式與預設參數依 TradingView 上 BigBeluga 公開的「Kalman Trend Levels」指標（量測雜訊 R＝0.01、過程雜訊 Q＝0.1），只使用快慢線交叉判斷多空。本站僅供學習研究，不構成投資建議。</footer>
 </div>
-<script src="assets/core.js?v=1125c"></script>
-<script src="assets/chart.js?v=1125c"></script>
-<script src="assets/common.js?v=1125c"></script>
-<script src="assets/signal-bt.js?v=1125c"></script>
-<script src="assets/signal-page.js?v=1125c"></script>
+<script src="assets/core.js?v=1127a"></script>
+<script src="assets/chart.js?v=1127a"></script>
+<script src="assets/common.js?v=1127a"></script>
+<script src="assets/signal-bt.js?v=1127a"></script>
+<script src="assets/strategies.js?v=1127a"></script>
+<script src="assets/signal-page.js?v=1127a"></script>
 <script>
 document.getElementById("parI").innerHTML = ETUI.info("快線、慢線都是用卡爾曼濾波器把指數收盤價平滑化後的線。週期越長越平滑、反應越慢。快線在慢線上方＝多頭（持有），下方＝空頭（持有現金）。");
 (function(){
   const S = [], L = [];
   for (let s = 30; s <= 100; s += 5) S.push(s);
   for (let l = 60; l <= 250; l += 5) L.push(l);
-  const K = {}, kl = (ak, n, px) => K[ak + n] || (K[ak + n] = SB.kalman(px, n));
+  const kl = (ak, n, px) => ST.kalman.line({ px }, ak, n);
   SPage.init({
     key: "kalman",
     fillCustom: ps => { document.getElementById("cS").value = ps.s; document.getElementById("cL").value = ps.l; },
     DEF: { s: 50, l: 150 },
     fmt: ps => `${ps.s}／${ps.l}`,
     readCustom: () => { const s = Math.round(+document.getElementById("cS").value), l = Math.round(+document.getElementById("cL").value); return s > 1 && l > s ? { s, l } : null; },
-    events: (a, ak, ps, jm) => {
-      const ks = kl(ak, ps.s, a.px), kL = kl(ak, ps.l, a.px), st = new Int8Array(a.px.length);
-      for (let j = 0; j < st.length; j++) st[j] = ks[j] > kL[j] ? 1 : 0;
-      const on = SB.alignState(st, jm), off = on.map(v => 1 - v);
-      return { on, off };
-    },
+    events: (a, ak, ps, jm, b) => ST.kalman.events(a, ak, ps, jm, b),   // 規則在 assets/strategies.js（和市場儀表板共用）
     sigTitle: "指數與 Kalman 快慢線",
     sigLines: (a, ak, ps) => [{ name: `快線 ${ps.s}`, color: 1, values: kl(ak, ps.s, a.px) }, { name: `慢線 ${ps.l}`, color: 4, values: kl(ak, ps.l, a.px) }],
     opt: { strategy: "kalman", grid: { S, L }, rad: [1, 2], toPs: at => ({ s: S[at[0]], l: L[at[1]] }), nbText: "周圍參數（快線 ±5 天、慢線 ±10 天）" }
