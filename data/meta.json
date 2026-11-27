@@ -6,8 +6,8 @@
    "kind": "etf",
    "ccy": "TWD",
    "first": "2003-06-30",
-   "last": "2026-11-25",
-   "rows": 5758,
+   "last": "2026-11-27",
+   "rows": 5760,
    "source": "yahoo-chart+seed",
    "fix_version": "7c5ad25f5b"
   },
@@ -17,8 +17,8 @@
    "kind": "etf",
    "ccy": "TWD",
    "first": "2012-06-29",
-   "last": "2026-11-25",
-   "rows": 3515,
+   "last": "2026-11-27",
+   "rows": 3517,
    "source": "yahoo-chart",
    "fix_version": "7c5ad25f5b"
   },
@@ -28,8 +28,8 @@
    "kind": "etf",
    "ccy": "TWD",
    "first": "2014-10-31",
-   "last": "2026-11-25",
-   "rows": 2939,
+   "last": "2026-11-27",
+   "rows": 2941,
    "source": "yahoo-chart+seed",
    "fix_version": "7c5ad25f5b"
   },
@@ -94,8 +94,8 @@
    "kind": "index",
    "ccy": "TWD",
    "first": "1997-07-02",
-   "last": "2026-11-26",
-   "rows": 7205,
+   "last": "2026-11-27",
+   "rows": 7206,
    "source": "yahoo-chart",
    "fix_version": "7c5ad25f5b"
   },
@@ -149,8 +149,8 @@
    "kind": "index",
    "ccy": "TWD",
    "first": "2003-01-02",
-   "last": "2026-11-26",
-   "rows": 5882,
+   "last": "2026-11-27",
+   "rows": 5883,
    "source": "twse",
    "fix_version": "7c5ad25f5b"
   },
@@ -177,6 +177,6 @@
    "fix_version": "7c5ad25f5b"
   }
  },
- "updated": "2026-11-27 12:32",
+ "updated": "2026-11-27 17:38",
  "fix_version": "7c5ad25f5b"
 }
