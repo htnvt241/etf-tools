@@ -39,8 +39,8 @@
    "kind": "etf",
    "ccy": "USD",
    "first": "2008-06-26",
-   "last": "2026-11-25",
-   "rows": 4634,
+   "last": "2026-11-27",
+   "rows": 4635,
    "source": "yahoo-chart",
    "fix_version": "7c5ad25f5b"
   },
@@ -50,8 +50,8 @@
    "kind": "etf",
    "ccy": "USD",
    "first": "2010-09-09",
-   "last": "2026-11-25",
-   "rows": 4079,
+   "last": "2026-11-27",
+   "rows": 4080,
    "source": "yahoo-chart",
    "fix_version": "7c5ad25f5b"
   },
@@ -61,8 +61,8 @@
    "kind": "etf",
    "ccy": "USD",
    "first": "1999-03-10",
-   "last": "2026-11-25",
-   "rows": 6973,
+   "last": "2026-11-27",
+   "rows": 6974,
    "source": "yahoo-chart",
    "fix_version": "7c5ad25f5b"
   },
@@ -72,8 +72,8 @@
    "kind": "etf",
    "ccy": "USD",
    "first": "2006-06-21",
-   "last": "2026-11-25",
-   "rows": 5141,
+   "last": "2026-11-27",
+   "rows": 5142,
    "source": "yahoo-chart",
    "fix_version": "7c5ad25f5b"
   },
@@ -83,8 +83,8 @@
    "kind": "etf",
    "ccy": "USD",
    "first": "2007-04-10",
-   "last": "2026-11-25",
-   "rows": 4941,
+   "last": "2026-11-27",
+   "rows": 4942,
    "source": "yahoo-chart",
    "fix_version": "7c5ad25f5b"
   },
@@ -105,8 +105,8 @@
    "kind": "index",
    "ccy": "USD",
    "first": "1927-12-30",
-   "last": "2026-11-25",
-   "rows": 24844,
+   "last": "2026-11-27",
+   "rows": 24845,
    "source": "yahoo-chart",
    "fix_version": "7c5ad25f5b"
   },
@@ -116,8 +116,8 @@
    "kind": "index",
    "ccy": "USD",
    "first": "1988-01-04",
-   "last": "2026-11-25",
-   "rows": 9799,
+   "last": "2026-11-27",
+   "rows": 9800,
    "source": "yahoo-chart",
    "fix_version": "7c5ad25f5b"
   },
@@ -138,8 +138,8 @@
    "kind": "index",
    "ccy": "USD",
    "first": "1985-10-01",
-   "last": "2026-11-25",
-   "rows": 10369,
+   "last": "2026-11-27",
+   "rows": 10370,
    "source": "yahoo-chart",
    "fix_version": "7c5ad25f5b"
   },
@@ -160,8 +160,8 @@
    "kind": "etf",
    "ccy": "USD",
    "first": "2006-06-21",
-   "last": "2026-11-25",
-   "rows": 5141,
+   "last": "2026-11-27",
+   "rows": 5142,
    "source": "yahoo-chart",
    "fix_version": "7c5ad25f5b"
   },
@@ -171,12 +171,12 @@
    "kind": "index",
    "ccy": "USD",
    "first": "1971-02-05",
-   "last": "2026-11-25",
-   "rows": 14070,
+   "last": "2026-11-27",
+   "rows": 14071,
    "source": "yahoo-chart",
    "fix_version": "7c5ad25f5b"
   }
  },
- "updated": "2026-11-28 01:32",
+ "updated": "2026-11-28 03:10",
  "fix_version": "7c5ad25f5b"
 }
