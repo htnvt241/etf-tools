@@ -127,8 +127,8 @@
    "kind": "fx",
    "ccy": "TWD",
    "first": "1983-10-03",
-   "last": "2026-11-26",
-   "rows": 10531,
+   "last": "2026-11-27",
+   "rows": 10532,
    "source": "yahoo+fred-seed",
    "fix_version": "7c5ad25f5b"
   },
@@ -177,6 +177,6 @@
    "fix_version": "7c5ad25f5b"
   }
  },
- "updated": "2026-11-28 03:10",
+ "updated": "2026-11-28 12:14",
  "fix_version": "7c5ad25f5b"
 }
